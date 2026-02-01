@@ -17,7 +17,17 @@
 package nl.knaw.dans.dvcli.config;
 
 import io.dropwizard.core.Configuration;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import nl.knaw.dans.lib.util.DataverseClientFactory;
 
+import javax.validation.Valid;
+import javax.validation.constraints.NotNull;
+
+@Data
+@EqualsAndHashCode(callSuper = true)
 public class DdDvCliConfig extends Configuration {
-  // TODO: add configuration fields
+  @NotNull
+  @Valid
+  private DataverseClientFactory api;
 }
