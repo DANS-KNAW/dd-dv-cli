@@ -1,3 +1,7 @@
+api:
+  baseUrl: "http://localhost:8080"
+  apiKey: "your-api-token"
+
 #
 # See https://www.dropwizard.io/en/latest/manual/configuration.html#logging
 #
@@ -7,4 +11,4 @@ logging:
     - type: file
       archive: false
       timeZone: system
-      currentLogFilename: ${HOME}/dd-dv-cli.log
+      currentLogFilename: ${HOME}/dv.log
