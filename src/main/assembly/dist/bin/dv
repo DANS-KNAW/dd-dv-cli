@@ -1,0 +1,11 @@
+#!/bin/sh
+
+MODULENAME=dd-dv-cli
+BINPATH=$(command readlink -f $0 2> /dev/null || command grealpath $0 2> /dev/null)
+APPHOME=$(dirname  $(dirname $BINPATH))
+EXAMPLE_CONFIG_PATH=/etc/opt/dans.knaw.nl/$MODULENAME/example-config.yml
+CONFIG_PATH=$HOME/.dv.yml
+
+java -Ddans.default.config=$CONFIG_PATH \
+     -Ddans.default.example.config=$EXAMPLE_CONFIG_PATH \
+     -jar $APPHOME/bin/$MODULENAME.jar "$@"

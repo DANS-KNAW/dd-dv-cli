@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    Copyright (C) 2026 DANS - Data Archiving and Networked Services (info@dans.knaw.nl)
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>nl.knaw.dans</groupId>
+        <artifactId>dd-parent</artifactId>
+        <version>1.11.0</version>
+    </parent>
+
+    <artifactId>dd-dv-cli</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+
+    <name>Dd Dv Cli</name>
+    <url>https://github.com/DANS-KNAW/dd-dv-cli</url>
+    <description>Dataverse command-line interface</description>
+    <inceptionYear>2026</inceptionYear>
+
+    <properties>
+        <main-class>nl.knaw.dans.dvcli.DdDvCli</main-class>
+        <command-name>dv</command-name>
+    </properties>
+
+    <scm>
+        <developerConnection>scm:git:ssh://github.com/DANS-KNAW/dd-dv-cli</developerConnection>
+        <tag>HEAD</tag>
+    </scm>
+
+    <dependencies>
+        <dependency>
+            <groupId>nl.knaw.dans</groupId>
+            <artifactId>dans-java-utils</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>nl.knaw.dans</groupId>
+            <artifactId>dans-validation-lib</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>commons-beanutils</groupId>
+            <artifactId>commons-beanutils</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.dropwizard</groupId>
+            <artifactId>dropwizard-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.dropwizard</groupId>
+            <artifactId>dropwizard-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+        </dependency>
+        <!-- Only required if this CLI connects to a OpenAPI generated service -->
+        <!--
+        <dependency>
+            <groupId>org.glassfish.jersey.core</groupId>
+            <artifactId>jersey-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.glassfish.jersey.media</groupId>
+            <artifactId>jersey-media-json-jackson</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.glassfish.jersey.media</groupId>
+            <artifactId>jersey-media-multipart</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.code.findbugs</groupId>
+            <artifactId>jsr305</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>javax.activation</groupId>
+            <artifactId>activation</artifactId>
+        </dependency>
+        -->
+    </dependencies>
+
+    <repositories>
+        <repository>
+            <id>dans-releases</id>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+            <url>https://maven.dans.knaw.nl/releases/</url>
+        </repository>
+        <repository>
+            <id>dans-snapshots</id>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+            <url>https://maven.dans.knaw.nl/snapshots/</url>
+        </repository>
+    </repositories>
+
+    <pluginRepositories>
+        <pluginRepository>
+            <id>dans-releases</id>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+            <url>https://maven.dans.knaw.nl/releases/</url>
+        </pluginRepository>
+        <pluginRepository>
+            <id>dans-snapshots</id>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+            <url>https://maven.dans.knaw.nl/snapshots/</url>
+        </pluginRepository>
+    </pluginRepositories>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <!-- Do not deploy to Maven, but instead to YUM repo with dans-nexus-maven-plugin -->
+                <artifactId>maven-deploy-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>nl.knaw.dans</groupId>
+                <artifactId>dans-nexus-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths combine.children="append">
+                        <path>
+                            <groupId>info.picocli</groupId>
+                            <artifactId>picocli-codegen</artifactId>
+                            <version>${picocli.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>rpm</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+                <file>
+                    <exists>/usr/local/bin/rpm</exists>
+                </file>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>rpm-maven-plugin</artifactId>
+                        <configuration combine.children="append">
+                            <group>Applications/Archiving</group>
+                            <mappings combine.children="override">
+                                <!-- Contents of ${app.home}/lib -->
+                                <mapping>
+                                    <directory>/opt/${dans-provider-name}/${project.artifactId}/lib</directory>
+                                    <dependency>
+                                        <stripVersion>false</stripVersion>
+                                    </dependency>
+                                </mapping>
+                                <!-- Read-only contents of ${app.home}/bin  -->
+                                <mapping>
+                                    <directory>/opt/${dans-provider-name}/${project.artifactId}/bin</directory>
+                                    <sources>
+                                        <source>
+                                            <location>${project.build.directory}/${project.artifactId}-${project.version}.jar</location>
+                                        </source>
+                                    </sources>
+                                </mapping>
+                                <!-- Executable contents of ${app.home}/bin -->
+                                <mapping>
+                                    <directory>/opt/${dans-provider-name}/${project.artifactId}/bin</directory>
+                                    <filemode>755</filemode>
+                                    <sources>
+                                        <source>
+                                            <location>src/main/assembly/dist/bin/${command-name}</location>
+                                        </source>
+                                    </sources>
+                                </mapping>
+                                <!-- Contents of cfg dir under /etc/opt ... -->
+                                <mapping>
+                                    <directory>/etc/opt/${dans-provider-name}/${project.artifactId}</directory>
+                                    <configuration>${rpm-replace-configuration}</configuration>
+                                    <sources>
+                                        <source>
+                                            <location>src/main/assembly/dist/cfg</location>
+                                        </source>
+                                    </sources>
+                                </mapping>
+                                <!-- Symlink to executable, to put it on the PATH -->
+                                <mapping>
+                                    <directory>/opt/bin</directory>
+                                    <sources>
+                                        <softlinkSource>
+                                            <location>/opt/${dans-provider-name}/${project.artifactId}/bin/${command-name}</location>
+                                        </softlinkSource>
+                                    </sources>
+                                </mapping>
+                                <!-- Symlink jar to version-less location -->
+                                <mapping>
+                                    <directory>/opt/${dans-provider-name}/${project.artifactId}/bin/</directory>
+                                    <sources>
+                                        <softlinkSource>
+                                            <destination>${project.artifactId}.jar</destination>
+                                            <location>/opt/${dans-provider-name}/${project.artifactId}/bin/${project.artifactId}-${project.version}.jar</location>
+                                        </softlinkSource>
+                                    </sources>
+                                </mapping>
+                            </mappings>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
+</project>
