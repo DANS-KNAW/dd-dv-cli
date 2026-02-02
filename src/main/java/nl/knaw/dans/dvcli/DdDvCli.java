@@ -24,6 +24,7 @@ import nl.knaw.dans.dvcli.command.DatasetLockAdd;
 import nl.knaw.dans.dvcli.command.DatasetLockDelete;
 import nl.knaw.dans.dvcli.command.DatasetLockList;
 import nl.knaw.dans.dvcli.command.NotificationsTruncate;
+import nl.knaw.dans.dvcli.command.DepositsCreateReport;
 import nl.knaw.dans.lib.util.PicocliVersionProvider;
 import nl.knaw.dans.dvcli.config.DdDvCliConfig;
 import picocli.CommandLine;
@@ -57,6 +58,6 @@ public class DdDvCli extends nl.knaw.dans.lib.util.AbstractCommandLineApp<DdDvCl
         commandLine.addSubcommand(new DatasetLockDelete(dataverseClient));
         commandLine.addSubcommand(new DatasetLockList(dataverseClient));
         commandLine.addSubcommand(new NotificationsTruncate(dataverseClient.database()));
-
+        commandLine.addSubcommand(new DepositsCreateReport());
     }
 }
