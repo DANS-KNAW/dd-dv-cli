@@ -38,6 +38,7 @@
         <main-class>nl.knaw.dans.dvcli.DdDvCli</main-class>
         <command-name>dv</command-name>
         <dans-dataverse-client-lib.version>1.5.2-SNAPSHOT</dans-dataverse-client-lib.version>
+        <dans-java-utils.version>2.7.1-SNAPSHOT</dans-java-utils.version>
     </properties>
 
     <scm>
