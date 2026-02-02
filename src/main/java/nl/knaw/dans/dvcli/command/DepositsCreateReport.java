@@ -215,9 +215,11 @@ public class DepositsCreateReport implements Callable<Integer> {
             sb.append(recipients);
         }
 
-        cmd.add("zsh");
+        cmd.add("sh");
         cmd.add("-c");
         cmd.add(sb.toString());
+
+        log.debug("Executing mail command: {}", String.join(" ", cmd));
 
         try {
             Process process = new ProcessBuilder(cmd).inheritIO().start();
