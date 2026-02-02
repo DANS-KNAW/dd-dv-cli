@@ -17,6 +17,7 @@
 package nl.knaw.dans.dvcli;
 
 import lombok.extern.slf4j.Slf4j;
+import nl.knaw.dans.dvcli.command.BannerList;
 import nl.knaw.dans.lib.util.PicocliVersionProvider;
 import nl.knaw.dans.dvcli.config.DdDvCliConfig;
 import picocli.CommandLine;
@@ -41,9 +42,8 @@ public class DdDvCli extends nl.knaw.dans.lib.util.AbstractCommandLineApp<DdDvCl
         // Build the Dataverse API client using the same approach as dd-dataverse-cli
         log.debug("Building Dataverse client");
         var dataverseClient = config.getApi().build();
-        // Intentionally do not set up Database access here.
 
-        // No subcommands yet; keep CLI minimal for now.
-        log.debug("Configuring command line for dv (no subcommands yet)");
+        log.debug("Configuring command line for dv commands");
+        commandLine.addSubcommand(new BannerList(dataverseClient.admin()));
     }
 }
