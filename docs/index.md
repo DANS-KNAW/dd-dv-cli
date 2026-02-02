@@ -1,30 +1,23 @@
 dd-dv-cli
-===========
+=========
 
-<!-- Remove this comment and extend the descriptions below -->
-
+Dataverse command-line interface
 
 SYNOPSIS
 --------
 
-    dd-dv-cli { server | check }
+    dv [-hV] [COMMAND]
+    dv banner-list
+    dv dataset-publish
+
+    dv --help # Show full list of commands
 
 
 DESCRIPTION
 -----------
 
-Dataverse command-line interface
+Dataverse command-line interface.
 
-
-ARGUMENTS
----------
-
-        positional arguments:
-        {server,check}         available commands
-        
-        named arguments:
-        -h, --help             show this help message and exit
-        -v, --version          show the application version and exit
 
 EXAMPLES
 --------
@@ -34,10 +27,10 @@ EXAMPLES
 
 INSTALLATION AND CONFIGURATION
 ------------------------------
-Currently this project is built as an RPM package for RHEL7/CentOS7 and later. The RPM will install the binaries to
+Currently, this project is built as an RPM package for RHEL8/Rocky8 and later. The RPM will install the binaries to
 `/opt/dans.knaw.nl/dd-dv-cli` and the configuration files to `/etc/opt/dans.knaw.nl/dd-dv-cli`. 
 
-For installation on systems that do no support RPM and/or systemd:
+For installation on systems that do not support RPM and/or systemd:
 
 1. Build the tarball (see next section).
 2. Extract it to some location on your system, for example `/opt/dans.knaw.nl/dd-dv-cli`.
@@ -50,7 +43,7 @@ BUILDING FROM SOURCE
 --------------------
 Prerequisites:
 
-* Java 11 or higher
+* Java 17 or higher
 * Maven 3.3.3 or higher
 * RPM
 

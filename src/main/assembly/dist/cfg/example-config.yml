@@ -1,3 +1,11 @@
+api:
+  baseUrl: "http://localhost:8080"
+  apiKey: "your-api-token"
+  #unblockKey: your-unblock-key
+  #databaseUrl: "jdbc:postgresql://localhost:5432/dvndb"
+  #databaseUser: "dvnuser"
+  #databasePassword: "your-database-password"
+
 #
 # See https://www.dropwizard.io/en/latest/manual/configuration.html#logging
 #
@@ -7,4 +15,4 @@ logging:
     - type: file
       archive: false
       timeZone: system
-      currentLogFilename: ${HOME}/dd-dv-cli.log
+      currentLogFilename: ${HOME}/dv.log
