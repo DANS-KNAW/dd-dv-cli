@@ -18,31 +18,31 @@ package nl.knaw.dans.dvcli.command;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import nl.knaw.dans.lib.dataverse.DatabaseApi;
 import nl.knaw.dans.lib.dataverse.DataverseClient;
 import nl.knaw.dans.lib.dataverse.DataverseException;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
 import org.apache.hc.core5.http.HttpStatus;
 import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.sql.ResultSet;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.Callable;
 
 @Command(
@@ -51,14 +51,10 @@ import java.util.concurrent.Callable;
     mixinStandardHelpOptions = true
 )
 @Slf4j
+@RequiredArgsConstructor
 public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callable<Integer> {
     private final DataverseClient dataverseClient;
     private final DatabaseApi dbApi;
-
-    public DatasetArchiveVersion(DataverseClient dataverseClient, DatabaseApi dbApi) {
-        this.dataverseClient = dataverseClient;
-        this.dbApi = dbApi;
-    }
 
     @ArgGroup(multiplicity = "1")
     private ExclusiveOptions exclusiveOptions;
@@ -106,6 +102,16 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
         private boolean archived;
     }
 
+    @Data
+    @AllArgsConstructor
+    private static class ReportRecord {
+        private String pid;
+        private int major;
+        private int minor;
+        private String result;
+        private String message;
+    }
+
     @Override
     public Integer doCall() throws Exception {
         List<DatasetVersionKey> versionsToArchive = new ArrayList<>();
@@ -120,29 +126,33 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
             versionsToArchive.add(new DatasetVersionKey(exclusiveOptions.singleVersion.pid, major, minor));
         }
 
-        Set<String> skippedPids = new HashSet<>();
+        List<ReportRecord> reportRecords = new ArrayList<>();
+        List<String> skippedPids = new ArrayList<>();
         int successCount = 0;
         int failCount = 0;
 
         for (DatasetVersionKey key : versionsToArchive) {
             if (skippedPids.contains(key.getPid())) {
                 log.info("Skipping {} {} because a previous version failed or was not archived", key.getPid(), key.getVersionString());
+                reportRecords.add(new ReportRecord(key.getPid(), key.getMajor(), key.getMinor(), "ERROR", "Skipped because a previous version of this PID failed or was not archived"));
                 continue;
             }
 
             try {
                 processVersion(key);
+                reportRecords.add(new ReportRecord(key.getPid(), key.getMajor(), key.getMinor(), "OK", "Version archived successfully"));
                 successCount++;
             }
             catch (Exception e) {
                 log.error("Failed to archive {} {}: {}", key.getPid(), key.getVersionString(), e.getMessage());
                 skippedPids.add(key.getPid());
+                reportRecords.add(new ReportRecord(key.getPid(), key.getMajor(), key.getMinor(), "ERROR", e.getMessage()));
                 failCount++;
             }
         }
 
-        if (reportBasename != null && !skippedPids.isEmpty()) {
-            writeReport(skippedPids);
+        if (reportBasename != null) {
+            writeReport(reportRecords);
         }
 
         log.info("Finished: {} succeeded, {} failed/skipped", successCount, failCount);
@@ -151,7 +161,7 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
 
     private List<DatasetVersionKey> readCsv(File file) throws IOException {
         List<DatasetVersionKey> result = new ArrayList<>();
-        try (CSVParser parser = CSVParser.parse(file, StandardCharsets.UTF_8, CSVFormat.DEFAULT.builder().setHeader().setTrim(true).build())) {
+        try (var parser = CSVParser.parse(file, StandardCharsets.UTF_8, CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).setTrim(true).build())) {
             for (CSVRecord record : parser) {
                 String pid = record.get("PID");
                 int major = Integer.parseInt(record.get("MAJORVERSION"));
@@ -220,14 +230,17 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
         }
     }
 
-    private void writeReport(Set<String> skippedPids) throws IOException {
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
-        File reportFile = new File(reportBasename + "-" + timestamp + ".txt");
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(reportFile))) {
-            for (String pid : skippedPids) {
-                writer.write(pid);
-                writer.newLine();
+    private void writeReport(List<ReportRecord> records) throws IOException {
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH:mm:ss"));
+        File reportFile = new File(reportBasename + "-" + timestamp + ".csv");
+        try (PrintWriter out = new PrintWriter(new FileWriter(reportFile));
+            CSVPrinter printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder()
+                .setHeader("PID", "MAJORVERSION", "MINORVERSION", "RESULT", "MESSAGE")
+                .build())) {
+            for (ReportRecord record : records) {
+                printer.printRecord(record.getPid(), record.getMajor(), record.getMinor(), record.getResult(), record.getMessage());
             }
+            printer.flush();
         }
         log.info("Report written to {}", reportFile.getAbsolutePath());
     }
