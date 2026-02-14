@@ -24,8 +24,13 @@ import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+import java.io.File;
 import java.io.PrintWriter;
+import java.sql.ResultSet;
+import java.sql.Timestamp;
 import java.time.OffsetDateTime;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.Callable;
 
 @Command(
@@ -47,7 +52,7 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
         private boolean csv;
 
         @Option(names = { "--output", "-o" }, description = "Output file (default: stdout)")
-        private java.io.File outputFile;
+        private File outputFile;
 
         @Option(names = { "--batch-size", "-b" }, description = "Split output into files of batch-size records")
         private Integer batchSize;
@@ -72,6 +77,39 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
 
     @Override
     protected Integer doCall() throws Exception {
+        List<DatasetVersionInfo> results = fetchResults();
+
+        File outputFile = csvOptions != null ? csvOptions.outputFile : null;
+        boolean csv = csvOptions != null && csvOptions.csv;
+        Integer batchSize = csvOptions != null ? csvOptions.batchSize : null;
+
+        if (csv && batchSize != null && outputFile != null) {
+            writeBatchCsvFiles(results, outputFile, batchSize);
+        }
+        else {
+            try (var out = createOutputWriter(outputFile)) {
+                if (csv) {
+                    writeSingleCsvFile(results, out);
+                }
+                else {
+                    writeTable(results, out);
+                }
+            }
+        }
+
+        return 0;
+    }
+
+    private PrintWriter createOutputWriter(File outputFile) throws Exception {
+        if (outputFile != null) {
+            return new PrintWriter(outputFile);
+        }
+        else {
+            return new PrintWriter(System.out, true);
+        }
+    }
+
+    private List<DatasetVersionInfo> fetchResults() throws Exception {
         String query = """
             SELECT dvo.protocol || ':' || dvo.authority || '/' || dvo.identifier AS PID,
                    dsv.versionnumber                                             AS MAJORVERSION,
@@ -92,11 +130,11 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
                 OR (? = false)) -- not filtering on updateCurrent
             ORDER BY PID ASC,
                      MAJORVERSION ASC,
-                     MINORVERSION ASC;            
+                     MINORVERSION ASC;
             """;
 
         Object[] parameters = new Object[] {
-            java.sql.Timestamp.from(after.toInstant()),
+            Timestamp.from(after.toInstant()),
             archived,
             unarchived,
             archived,
@@ -105,7 +143,7 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
             updateCurrent
         };
 
-        try (var context = dbApi.query(query, (java.sql.ResultSet rs) -> {
+        try (var context = dbApi.query(query, (ResultSet rs) -> {
             try {
                 return new DatasetVersionInfo(
                     rs.getString("PID"),
@@ -117,60 +155,53 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
                 throw new RuntimeException("Failed to map ResultSet row to DatasetVersionInfo", e);
             }
         })) {
-            java.util.List<DatasetVersionInfo> results = context.executeFor(java.util.Collections.singletonList(parameters));
-            java.io.File outputFile = csvOptions != null ? csvOptions.outputFile : null;
-            boolean csv = csvOptions != null && csvOptions.csv;
-            Integer batchSize = csvOptions != null ? csvOptions.batchSize : null;
+            return context.executeFor(Collections.singletonList(parameters));
+        }
+    }
 
-            if (csv && batchSize != null && outputFile != null) {
-                int totalResults = results.size();
-                int numBatches = (int) Math.ceil((double) totalResults / batchSize);
-                int numDigits = Math.max(3, String.valueOf(numBatches).length());
-                String format = "%0" + numDigits + "d-%s";
+    private void writeBatchCsvFiles(List<DatasetVersionInfo> results, File outputFile, int batchSize) throws Exception {
+        int totalResults = results.size();
+        int numBatches = (int) Math.ceil((double) totalResults / batchSize);
+        int numDigits = Math.max(3, String.valueOf(numBatches).length());
+        String format = "%0" + numDigits + "d-%s";
 
-                for (int i = 0; i < numBatches; i++) {
-                    int fromIndex = i * batchSize;
-                    int toIndex = Math.min(fromIndex + batchSize, totalResults);
-                    java.util.List<DatasetVersionInfo> batch = results.subList(fromIndex, toIndex);
+        for (int i = 0; i < numBatches; i++) {
+            int fromIndex = i * batchSize;
+            int toIndex = Math.min(fromIndex + batchSize, totalResults);
+            List<DatasetVersionInfo> batch = results.subList(fromIndex, toIndex);
 
-                    String fileName = String.format(format, i + 1, outputFile.getName());
-                    java.io.File batchFile = new java.io.File(outputFile.getParentFile(), fileName);
+            String fileName = String.format(format, i + 1, outputFile.getName());
+            File batchFile = new File(outputFile.getParentFile(), fileName);
 
-                    try (var out = new PrintWriter(batchFile);
-                        var printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder()
-                            .setHeader("PID", "MAJORVERSION", "MINORVERSION")
-                            .build())) {
-                        for (DatasetVersionInfo info : batch) {
-                            printer.printRecord(info.getPid(), info.getMajorVersion(), info.getMinorVersion());
-                            printer.flush();
-                        }
-                    }
-                }
-            }
-            else {
-                try (var out = outputFile != null ? new PrintWriter(outputFile) : new PrintWriter(System.out, true)) {
-                    if (csv) {
-                        try (var printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder()
-                            .setHeader("PID", "MAJORVERSION", "MINORVERSION")
-                            .build())) {
-                            for (DatasetVersionInfo info : results) {
-                                printer.printRecord(info.getPid(), info.getMajorVersion(), info.getMinorVersion());
-                                printer.flush();
-                            }
-                        }
-                    }
-                    else {
-                        out.printf("%-40s %-15s%n", "PID", "Version");
-                        out.println("-".repeat(56));
-                        for (DatasetVersionInfo info : results) {
-                            String version = info.getMajorVersion() + "." + info.getMinorVersion();
-                            out.printf("%-40s %-15s%n", info.getPid(), version);
-                        }
-                    }
+            try (var out = new PrintWriter(batchFile);
+                var printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder()
+                    .setHeader("PID", "MAJORVERSION", "MINORVERSION")
+                    .build())) {
+                for (DatasetVersionInfo info : batch) {
+                    printer.printRecord(info.getPid(), info.getMajorVersion(), info.getMinorVersion());
+                    printer.flush();
                 }
             }
         }
+    }
 
-        return 0;
+    private void writeSingleCsvFile(List<DatasetVersionInfo> results, PrintWriter out) throws Exception {
+        try (var printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder()
+            .setHeader("PID", "MAJORVERSION", "MINORVERSION")
+            .build())) {
+            for (DatasetVersionInfo info : results) {
+                printer.printRecord(info.getPid(), info.getMajorVersion(), info.getMinorVersion());
+                printer.flush();
+            }
+        }
+    }
+
+    private void writeTable(List<DatasetVersionInfo> results, PrintWriter out) {
+        out.printf("%-40s %-15s%n", "PID", "Version");
+        out.println("-".repeat(56));
+        for (DatasetVersionInfo info : results) {
+            String version = info.getMajorVersion() + "." + info.getMinorVersion();
+            out.printf("%-40s %-15s%n", info.getPid(), version);
+        }
     }
 }
