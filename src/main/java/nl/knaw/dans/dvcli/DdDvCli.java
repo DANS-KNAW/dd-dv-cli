@@ -20,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import nl.knaw.dans.dvcli.command.BannerList;
 import nl.knaw.dans.dvcli.command.BannerAdd;
 import nl.knaw.dans.dvcli.command.BannerDelete;
+import nl.knaw.dans.dvcli.command.DatasetArchiveVersion;
 import nl.knaw.dans.dvcli.command.DatasetsGetPublished;
 import nl.knaw.dans.dvcli.command.DatasetLockAdd;
 import nl.knaw.dans.dvcli.command.DatasetLockDelete;
@@ -60,6 +61,7 @@ public class DdDvCli extends nl.knaw.dans.lib.util.AbstractCommandLineApp<DdDvCl
         commandLine.addSubcommand(new DatasetLockList(dataverseClient));
         commandLine.addSubcommand(new NotificationsTruncate(dataverseClient.database()));
         commandLine.addSubcommand(new DatasetsGetPublished(dataverseClient.database()));
+        commandLine.addSubcommand(new DatasetArchiveVersion(dataverseClient));
         commandLine.addSubcommand(new DepositsCreateReport());
     }
 }
