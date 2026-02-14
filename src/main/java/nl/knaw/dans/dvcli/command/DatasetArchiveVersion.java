@@ -81,6 +81,9 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
     @Option(names = "--report", description = "Basename of the report containing skipped PIDs", required = true)
     private String reportBasename;
 
+    @Option(names = { "-w", "--wait-between-items" }, description = "Wait period (in seconds) between items", defaultValue = "3")
+    private int waitBetweenItems;
+
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
@@ -136,6 +139,11 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
                 log.info("Skipping {} {} because a previous version failed or was not archived", key.getPid(), key.getVersionString());
                 reportRecords.add(new ReportRecord(key.getPid(), key.getMajor(), key.getMinor(), "ERROR", "Skipped because a previous version of this PID failed or was not archived"));
                 continue;
+            }
+
+            if (waitBetweenItems > 0 && (successCount > 0 || failCount > 0)) {
+                log.info("Waiting {} seconds before processing next item...", waitBetweenItems);
+                Thread.sleep(waitBetweenItems * 1000L);
             }
 
             try {
@@ -200,6 +208,39 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
 
         dataverseClient.admin().submitDatasetVersionToArchive(key.getPid(), key.getVersionString(), true);
         log.info("Submitted {} version {} to archive", key.getPid(), key.getVersionString());
+
+        waitForArchivalToFinish(key);
+    }
+
+    private void waitForArchivalToFinish(DatasetVersionKey key) throws Exception {
+        log.info("Waiting for archival of {} version {} to finish...", key.getPid(), key.getVersionString());
+        var datasetApi = dataverseClient.dataset(key.getPid());
+        var startTime = System.currentTimeMillis();
+        var timeout = 600_000L; // 10 minutes timeout for polling
+        var interval = 5000L; // 5 seconds polling interval
+
+        while (!isArchived(key)) {
+            if (System.currentTimeMillis() - startTime > timeout) {
+                throw new RuntimeException("Timeout waiting for archival to finish");
+            }
+
+            Thread.sleep(interval);
+        }
+    }
+
+    private boolean isArchived(DatasetVersionKey key) throws IOException {
+        try {
+            var response = dataverseClient.dataset(key.getPid()).getArchivalStatus(key.getVersionString());
+            return response.getHttpResponse().getCode() == HttpStatus.SC_OK;
+        }
+        catch (DataverseException e) {
+            if (e.getStatus() == HttpStatus.SC_NOT_FOUND && e.getMessage().contains("This dataset version has not been archived")) {
+                return false; // Not archived yet
+            }
+            else {
+                throw new RuntimeException("Failed to check archival status for " + key.getPid() + " version " + key.getVersionString(), e);
+            }
+        }
     }
 
     private List<InternalVersionInfo> fetchVersionsFromDb(String pid) throws Exception {
