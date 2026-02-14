@@ -183,14 +183,12 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
     private void processVersion(DatasetVersionKey key) throws Exception {
         log.info("Processing {} version {}", key.getPid(), key.getVersionString());
 
-        List<InternalVersionInfo> versions = fetchVersionsFromDb(key.getPid());
+        List<InternalVersionInfo> versions = fetchReleasedAndDeaccessionedVersionsFromDb(key.getPid());
 
         for (InternalVersionInfo v : versions) {
-            if (v.getMajor() < key.getMajor() || (v.getMajor() == key.getMajor() && v.getMinor() < key.getMinor())) {
-                if (!v.isArchived()) {
-                    String vStr = v.getMajor() + "." + v.getMinor();
-                    throw new IllegalStateException("Preceding version " + vStr + " is not archived");
-                }
+            if (isDatasetVersionKeyPrecededBy(key, v) && !v.isArchived()) {
+                String vStr = v.getMajor() + "." + v.getMinor();
+                throw new IllegalStateException("Preceding version " + vStr + " is not archived");
             }
         }
 
@@ -210,6 +208,10 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
         log.info("Submitted {} version {} to archive", key.getPid(), key.getVersionString());
 
         waitForArchivalToFinish(key);
+    }
+
+    private boolean isDatasetVersionKeyPrecededBy(DatasetVersionKey key, InternalVersionInfo v) {
+        return v.getMajor() < key.getMajor() || (v.getMajor() == key.getMajor() && v.getMinor() < key.getMinor());
     }
 
     private void waitForArchivalToFinish(DatasetVersionKey key) throws Exception {
@@ -243,7 +245,7 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
         }
     }
 
-    private List<InternalVersionInfo> fetchVersionsFromDb(String pid) throws Exception {
+    private List<InternalVersionInfo> fetchReleasedAndDeaccessionedVersionsFromDb(String pid) throws Exception {
         String query = """
             SELECT dsv.versionnumber      AS MAJORVERSION,
                    dsv.minorversionnumber AS MINORVERSION,
