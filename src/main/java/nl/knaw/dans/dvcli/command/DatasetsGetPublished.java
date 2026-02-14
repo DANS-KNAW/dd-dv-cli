@@ -48,6 +48,9 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
 
         @Option(names = { "--output", "-o" }, description = "Output file (default: stdout)")
         private java.io.File outputFile;
+
+        @Option(names = { "--batch-size", "-b" }, description = "Split output into files of batch-size records")
+        private Integer batchSize;
     }
 
     private final DatabaseApi dbApi;
@@ -117,24 +120,52 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
             java.util.List<DatasetVersionInfo> results = context.executeFor(java.util.Collections.singletonList(parameters));
             java.io.File outputFile = csvOptions != null ? csvOptions.outputFile : null;
             boolean csv = csvOptions != null && csvOptions.csv;
+            Integer batchSize = csvOptions != null ? csvOptions.batchSize : null;
 
-            try (var out = outputFile != null ? new PrintWriter(outputFile) : new PrintWriter(System.out, true)) {
-                if (csv) {
-                    try (var printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder()
-                        .setHeader("PID", "MAJORVERSION", "MINORVERSION")
-                        .build())) {
-                        for (DatasetVersionInfo info : results) {
+            if (csv && batchSize != null && outputFile != null) {
+                int totalResults = results.size();
+                int numBatches = (int) Math.ceil((double) totalResults / batchSize);
+                int numDigits = Math.max(3, String.valueOf(numBatches).length());
+                String format = "%0" + numDigits + "d-%s";
+
+                for (int i = 0; i < numBatches; i++) {
+                    int fromIndex = i * batchSize;
+                    int toIndex = Math.min(fromIndex + batchSize, totalResults);
+                    java.util.List<DatasetVersionInfo> batch = results.subList(fromIndex, toIndex);
+
+                    String fileName = String.format(format, i + 1, outputFile.getName());
+                    java.io.File batchFile = new java.io.File(outputFile.getParentFile(), fileName);
+
+                    try (var out = new PrintWriter(batchFile);
+                        var printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder()
+                            .setHeader("PID", "MAJORVERSION", "MINORVERSION")
+                            .build())) {
+                        for (DatasetVersionInfo info : batch) {
                             printer.printRecord(info.getPid(), info.getMajorVersion(), info.getMinorVersion());
                             printer.flush();
                         }
                     }
                 }
-                else {
-                    out.printf("%-40s %-15s%n", "PID", "Version");
-                    out.println("-".repeat(56));
-                    for (DatasetVersionInfo info : results) {
-                        String version = info.getMajorVersion() + "." + info.getMinorVersion();
-                        out.printf("%-40s %-15s%n", info.getPid(), version);
+            }
+            else {
+                try (var out = outputFile != null ? new PrintWriter(outputFile) : new PrintWriter(System.out, true)) {
+                    if (csv) {
+                        try (var printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder()
+                            .setHeader("PID", "MAJORVERSION", "MINORVERSION")
+                            .build())) {
+                            for (DatasetVersionInfo info : results) {
+                                printer.printRecord(info.getPid(), info.getMajorVersion(), info.getMinorVersion());
+                                printer.flush();
+                            }
+                        }
+                    }
+                    else {
+                        out.printf("%-40s %-15s%n", "PID", "Version");
+                        out.println("-".repeat(56));
+                        for (DatasetVersionInfo info : results) {
+                            String version = info.getMajorVersion() + "." + info.getMinorVersion();
+                            out.printf("%-40s %-15s%n", info.getPid(), version);
+                        }
                     }
                 }
             }
