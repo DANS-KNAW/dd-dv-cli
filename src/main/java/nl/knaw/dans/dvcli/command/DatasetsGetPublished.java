@@ -16,9 +16,12 @@
 package nl.knaw.dans.dvcli.command;
 
 import nl.knaw.dans.lib.dataverse.DatabaseApi;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVPrinter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+import java.io.PrintWriter;
 import java.time.OffsetDateTime;
 import java.util.concurrent.Callable;
 
@@ -65,6 +68,12 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
 
     @Option(names = { "--updatecurrent" }, description = "An updatecurrent action was performed on the dataset version")
     private boolean updateCurrent;
+
+    @Option(names = { "--csv", "-c" }, description = "Format output as CSV")
+    private boolean csv;
+
+    @Option(names = { "--output", "-o" }, description = "Output file (default: stdout)")
+    private java.io.File outputFile;
 
     public DatasetsGetPublished(DatabaseApi dbApi) {
         this.dbApi = dbApi;
@@ -119,11 +128,25 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
         })) {
             java.util.List<DatasetVersionInfo> results = context.executeFor(java.util.Collections.singletonList(parameters));
 
-            System.out.printf("%-40s %-15s%n", "PID", "Version");
-            System.out.println("-".repeat(56));
-            for (DatasetVersionInfo info : results) {
-                String version = info.getMajorVersion() + "." + info.getMinorVersion();
-                System.out.printf("%-40s %-15s%n", info.getPid(), version);
+            try (var out = outputFile != null ? new PrintWriter(outputFile) : new PrintWriter(System.out, true)) {
+                if (csv) {
+                    try (var printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder()
+                        .setHeader("PID", "MAJORVERSION", "MINORVERSION")
+                        .build())) {
+                        for (DatasetVersionInfo info : results) {
+                            printer.printRecord(info.getPid(), info.getMajorVersion(), info.getMinorVersion());
+                            printer.flush();
+                        }
+                    }
+                }
+                else {
+                    out.printf("%-40s %-15s%n", "PID", "Version");
+                    out.println("-".repeat(56));
+                    for (DatasetVersionInfo info : results) {
+                        String version = info.getMajorVersion() + "." + info.getMinorVersion();
+                        out.printf("%-40s %-15s%n", info.getPid(), version);
+                    }
+                }
             }
         }
 
