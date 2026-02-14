@@ -15,9 +15,12 @@
  */
 package nl.knaw.dans.dvcli.command;
 
+import lombok.Data;
+import lombok.RequiredArgsConstructor;
 import nl.knaw.dans.lib.dataverse.DatabaseApi;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
+import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
@@ -30,32 +33,27 @@ import java.util.concurrent.Callable;
     description = "Get published datasets based on various filters",
     mixinStandardHelpOptions = true
 )
+@RequiredArgsConstructor
 public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callable<Integer> {
-    private final DatabaseApi dbApi;
-
+    @Data
     public static class DatasetVersionInfo {
         private final String pid;
         private final Long majorVersion;
         private final Long minorVersion;
-
-        public DatasetVersionInfo(String pid, Long majorVersion, Long minorVersion) {
-            this.pid = pid;
-            this.majorVersion = majorVersion;
-            this.minorVersion = minorVersion;
-        }
-
-        public String getPid() {
-            return pid;
-        }
-
-        public Long getMajorVersion() {
-            return majorVersion;
-        }
-
-        public Long getMinorVersion() {
-            return minorVersion;
-        }
     }
+
+    public static class CsvOptions {
+        @Option(names = { "--csv", "-c" }, required = true, description = "Format output as CSV")
+        private boolean csv;
+
+        @Option(names = { "--output", "-o" }, description = "Output file (default: stdout)")
+        private java.io.File outputFile;
+    }
+
+    private final DatabaseApi dbApi;
+
+    @ArgGroup(exclusive = false, heading = "CSV options:%n")
+    private CsvOptions csvOptions;
 
     @Option(names = { "--after" }, description = "Filter on dataset versions published after this timestamp (ISO 8601 format)")
     private OffsetDateTime after = OffsetDateTime.parse("1970-01-01T00:00:00Z");
@@ -68,16 +66,6 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
 
     @Option(names = { "--updatecurrent" }, description = "An updatecurrent action was performed on the dataset version")
     private boolean updateCurrent;
-
-    @Option(names = { "--csv", "-c" }, description = "Format output as CSV")
-    private boolean csv;
-
-    @Option(names = { "--output", "-o" }, description = "Output file (default: stdout)")
-    private java.io.File outputFile;
-
-    public DatasetsGetPublished(DatabaseApi dbApi) {
-        this.dbApi = dbApi;
-    }
 
     @Override
     protected Integer doCall() throws Exception {
@@ -127,6 +115,8 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
             }
         })) {
             java.util.List<DatasetVersionInfo> results = context.executeFor(java.util.Collections.singletonList(parameters));
+            java.io.File outputFile = csvOptions != null ? csvOptions.outputFile : null;
+            boolean csv = csvOptions != null && csvOptions.csv;
 
             try (var out = outputFile != null ? new PrintWriter(outputFile) : new PrintWriter(System.out, true)) {
                 if (csv) {
