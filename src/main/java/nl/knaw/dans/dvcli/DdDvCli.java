@@ -61,7 +61,7 @@ public class DdDvCli extends nl.knaw.dans.lib.util.AbstractCommandLineApp<DdDvCl
         commandLine.addSubcommand(new DatasetLockList(dataverseClient));
         commandLine.addSubcommand(new NotificationsTruncate(dataverseClient.database()));
         commandLine.addSubcommand(new DatasetsGetPublished(dataverseClient.database()));
-        commandLine.addSubcommand(new DatasetArchiveVersion(dataverseClient));
+        commandLine.addSubcommand(new DatasetArchiveVersion(dataverseClient, dataverseClient.database()));
         commandLine.addSubcommand(new DepositsCreateReport());
     }
 }

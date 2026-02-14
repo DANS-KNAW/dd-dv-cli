@@ -19,9 +19,9 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import nl.knaw.dans.lib.dataverse.DatabaseApi;
 import nl.knaw.dans.lib.dataverse.DataverseClient;
 import nl.knaw.dans.lib.dataverse.DataverseException;
-import nl.knaw.dans.lib.dataverse.model.dataset.DatasetVersion;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
@@ -35,10 +35,11 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.sql.ResultSet;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -46,15 +47,17 @@ import java.util.concurrent.Callable;
 
 @Command(
     name = "dataset-archive-version",
-    description = "Archives a specific dataset version or multiple versions from a CSV file",
+    description = "Archives a specific dataset version or multiple dataset versions from a CSV file",
     mixinStandardHelpOptions = true
 )
 @Slf4j
 public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callable<Integer> {
     private final DataverseClient dataverseClient;
+    private final DatabaseApi dbApi;
 
-    public DatasetArchiveVersion(DataverseClient dataverseClient) {
+    public DatasetArchiveVersion(DataverseClient dataverseClient, DatabaseApi dbApi) {
         this.dataverseClient = dataverseClient;
+        this.dbApi = dbApi;
     }
 
     @ArgGroup(multiplicity = "1")
@@ -93,6 +96,14 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
         public String getVersionString() {
             return major + "." + minor;
         }
+    }
+
+    @Data
+    @AllArgsConstructor
+    private static class InternalVersionInfo {
+        private int major;
+        private int minor;
+        private boolean archived;
     }
 
     @Override
@@ -151,28 +162,16 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
         return result;
     }
 
-    private void processVersion(DatasetVersionKey key) throws IOException, DataverseException {
+    private void processVersion(DatasetVersionKey key) throws Exception {
         log.info("Processing {} version {}", key.getPid(), key.getVersionString());
 
+        List<InternalVersionInfo> versions = fetchVersionsFromDb(key.getPid());
 
-        List<DatasetVersion> versions = dataverseClient.dataset(key.getPid()).getAllVersions().getData();
-        versions.sort(Comparator.comparing(DatasetVersion::getVersionNumber).thenComparing(DatasetVersion::getVersionMinorNumber));
-
-        for (DatasetVersion v : versions) {
-            if (v.getVersionNumber() < key.getMajor() || (v.getVersionNumber() == key.getMajor() && v.getVersionMinorNumber() < key.getMinor())) {
-                // Check archival status of this preceding version
-                String vStr = v.getVersionNumber() + "." + v.getVersionMinorNumber();
-                try {
-                    var status = dataverseClient.dataset(key.getPid()).getArchivalStatus(vStr).getData();
-                    if (!"archived".equalsIgnoreCase(status.getStatus())) {
-                        throw new IllegalStateException("Preceding version " + vStr + " is not archived (status: " + status.getStatus() + ")");
-                    }
-                }
-                catch (DataverseException e) {
-                    if (e.getStatus() == HttpStatus.SC_NOT_FOUND) {
-                        throw new IllegalStateException("Preceding version " + vStr + " has no archival status");
-                    }
-                    throw e;
+        for (InternalVersionInfo v : versions) {
+            if (v.getMajor() < key.getMajor() || (v.getMajor() == key.getMajor() && v.getMinor() < key.getMinor())) {
+                if (!v.isArchived()) {
+                    String vStr = v.getMajor() + "." + v.getMinor();
+                    throw new IllegalStateException("Preceding version " + vStr + " is not archived");
                 }
             }
         }
@@ -189,9 +188,36 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
             }
         }
 
-        // 3. Archiveer de versie
         dataverseClient.admin().submitDatasetVersionToArchive(key.getPid(), key.getVersionString(), true);
         log.info("Submitted {} version {} to archive", key.getPid(), key.getVersionString());
+    }
+
+    private List<InternalVersionInfo> fetchVersionsFromDb(String pid) throws Exception {
+        String query = """
+            SELECT dsv.versionnumber      AS MAJORVERSION,
+                   dsv.minorversionnumber AS MINORVERSION,
+                   dsv.archivalcopylocation
+            FROM datasetversion dsv
+                     JOIN dvobject dvo ON dsv.dataset_id = dvo.id
+            WHERE dvo.protocol || ':' || dvo.authority || '/' || dvo.identifier = ?
+                 AND dsv.versionstate IN ('RELEASED', 'DEACCESSIONED')
+            ORDER BY MAJORVERSION ASC, MINORVERSION ASC
+            """;
+
+        try (var context = dbApi.query(query, (ResultSet rs) -> {
+            try {
+                return new InternalVersionInfo(
+                    rs.getInt("MAJORVERSION"),
+                    rs.getInt("MINORVERSION"),
+                    rs.getString("archivalcopylocation") != null
+                );
+            }
+            catch (Exception e) {
+                throw new RuntimeException("Failed to map ResultSet row to InternalVersionInfo", e);
+            }
+        })) {
+            return context.executeFor(Collections.singletonList(new Object[] { pid }));
+        }
     }
 
     private void writeReport(Set<String> skippedPids) throws IOException {
