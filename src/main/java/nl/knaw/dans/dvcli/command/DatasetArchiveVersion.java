@@ -78,10 +78,10 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
     @Option(names = { "--skip-pids-from", "-s" }, description = "Skip PIDs from the PID-column in the given CSV file")
     private File skipPidsFrom;
 
-    @Option(names = "--force", description = "Force re-archiving of already archived versions")
+    @Option(names = {"--force", "-f"}, description = "Force re-archiving of already archived versions")
     private boolean force;
 
-    @Option(names = "--report", description = "Basename of the report containing skipped PIDs", required = true)
+    @Option(names = {"--report", "-r"}, description = "Basename of the report containing skipped PIDs", required = true)
     private String reportBasename;
 
     @Option(names = { "-w", "--wait-between-items" }, description = "Wait period (in seconds) between items", defaultValue = "3")
@@ -217,6 +217,10 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
                 String vStr = v.getMajor() + "." + v.getMinor();
                 throw new IllegalStateException("Preceding version " + vStr + " is not archived");
             }
+            if (isDatasetVersionKeyFollowedBy(key, v) && v.isArchived()) {
+                String vStr = v.getMajor() + "." + v.getMinor();
+                throw new IllegalStateException("Succeeding version " + vStr + " is already archived; refusing to archive " + key.getVersionString());
+            }
         }
 
         if (force) {
@@ -239,6 +243,10 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
 
     private boolean isDatasetVersionKeyPrecededBy(DatasetVersionKey key, InternalVersionInfo v) {
         return v.getMajor() < key.getMajor() || (v.getMajor() == key.getMajor() && v.getMinor() < key.getMinor());
+    }
+
+    private boolean isDatasetVersionKeyFollowedBy(DatasetVersionKey key, InternalVersionInfo v) {
+        return v.getMajor() > key.getMajor() || (v.getMajor() == key.getMajor() && v.getMinor() > key.getMinor());
     }
 
     private void waitForArchivalToFinish(DatasetVersionKey key) throws Exception {

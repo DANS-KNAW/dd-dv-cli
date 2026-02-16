@@ -120,7 +120,7 @@ public class DatasetsGetStorageSize extends AbstractDatabaseCmd implements Calla
             GROUP BY PID
             HAVING ((SUM(filesize) IS NULL AND 0 = ?) OR (SUM(filesize) IS NOT NULL AND SUM(filesize) >= ?))
                AND (COUNT(datafile_id) >= ?)
-               AND ((SUM(filesize) IS NULL AND 0 = ?) OR (SUM(filesize) IS NOT NULL AND SUM(filesize) <= ?))
+               AND ((SUM(filesize) IS NULL) OR (SUM(filesize) IS NOT NULL AND SUM(filesize) <= ?))
                AND (COUNT(datafile_id) <= ?)
             ORDER BY PID ASC;
             """;
@@ -132,7 +132,7 @@ public class DatasetsGetStorageSize extends AbstractDatabaseCmd implements Calla
         Object[] parameters = new Object[] {
             minSizeBytes, minSizeBytes,
             minFiles,
-            maxSizeBytes, maxSizeBytes,
+            maxSizeBytes,
             maxFilesNum
         };
 
