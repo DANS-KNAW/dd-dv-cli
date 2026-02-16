@@ -78,10 +78,10 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
     @Option(names = { "--skip-pids-from", "-s" }, description = "Skip PIDs from the PID-column in the given CSV file")
     private File skipPidsFrom;
 
-    @Option(names = {"--force", "-f"}, description = "Force re-archiving of already archived versions")
+    @Option(names = { "--force", "-f" }, description = "Force re-archiving of already archived versions")
     private boolean force;
 
-    @Option(names = {"--report", "-r"}, description = "Basename of the report containing skipped PIDs", required = true)
+    @Option(names = { "--report", "-r" }, description = "Basename of the report containing skipped PIDs", required = true)
     private String reportBasename;
 
     @Option(names = { "-w", "--wait-between-items" }, description = "Wait period (in seconds) between items", defaultValue = "3")
@@ -251,7 +251,6 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
 
     private void waitForArchivalToFinish(DatasetVersionKey key) throws Exception {
         log.info("Waiting for archival of {} version {} to finish...", key.getPid(), key.getVersionString());
-        var datasetApi = dataverseClient.dataset(key.getPid());
         var startTime = System.currentTimeMillis();
         var timeout = 600_000L; // 10 minutes timeout for polling
         var interval = 5000L; // 5 seconds polling interval
