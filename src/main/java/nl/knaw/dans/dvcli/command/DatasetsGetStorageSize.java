@@ -71,6 +71,10 @@ public class DatasetsGetStorageSize extends AbstractDatabaseCmd implements Calla
     protected Integer doCall() throws Exception {
         List<DatasetStorageInfo> results = fetchResults();
 
+        if (!"-".equals(outputFile) && !outputFile.toLowerCase().endsWith(".csv")) {
+            outputFile += ".csv";
+        }
+
         try (PrintWriter out = createOutputWriter();
             CSVPrinter printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder()
                 .setHeader("PID", "STORAGE", "FILES")

@@ -48,10 +48,7 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
     }
 
     public static class CsvOptions {
-        @Option(names = { "--csv", "-c" }, required = true, description = "Format output as CSV")
-        private boolean csv;
-
-        @Option(names = { "--output", "-o" }, description = "Output file (default: stdout)")
+        @Option(names = { "--output", "-o" }, description = "Output file")
         private File outputFile;
 
         @Option(names = { "--batch-size", "-b" }, description = "Split output into files of batch-size records")
@@ -80,10 +77,15 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
         List<DatasetVersionInfo> results = fetchResults();
 
         File outputFile = csvOptions != null ? csvOptions.outputFile : null;
-        boolean csv = csvOptions != null && csvOptions.csv;
         Integer batchSize = csvOptions != null ? csvOptions.batchSize : null;
 
-        if (csv && batchSize != null && outputFile != null) {
+        if (outputFile != null && !outputFile.getName().toLowerCase().endsWith(".csv")) {
+            outputFile = new File(outputFile.getParentFile(), outputFile.getName() + ".csv");
+        }
+
+        boolean csv = outputFile != null || batchSize != null;
+
+        if (batchSize != null && outputFile != null) {
             writeBatchCsvFiles(results, outputFile, batchSize);
         }
         else {
@@ -165,12 +167,14 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
         int numDigits = Math.max(3, String.valueOf(numBatches).length());
         String format = "%0" + numDigits + "d-%s";
 
+        String baseName = outputFile.getName();
+
         for (int i = 0; i < numBatches; i++) {
             int fromIndex = i * batchSize;
             int toIndex = Math.min(fromIndex + batchSize, totalResults);
             List<DatasetVersionInfo> batch = results.subList(fromIndex, toIndex);
 
-            String fileName = String.format(format, i + 1, outputFile.getName());
+            String fileName = String.format(format, i + 1, baseName);
             File batchFile = new File(outputFile.getParentFile(), fileName);
 
             try (var out = new PrintWriter(batchFile);
