@@ -28,7 +28,7 @@
     <artifactId>dd-dv-cli</artifactId>
     <version>0.1.1-SNAPSHOT</version>
 
-    <name>Dd Dv Cli</name>
+    <name>DD DV Cli</name>
     <url>https://github.com/DANS-KNAW/dd-dv-cli</url>
     <description>Dataverse command-line interface</description>
     <inceptionYear>2026</inceptionYear>
@@ -37,7 +37,7 @@
         <main-class>nl.knaw.dans.dvcli.DdDvCli</main-class>
         <command-name>dv</command-name>
         <dans-dataverse-client-lib.version>1.6.1-SNAPSHOT</dans-dataverse-client-lib.version>
-        <dans-java-utils.version>2.8.0</dans-java-utils.version>
+        <dans-java-utils.version>2.9.1-SNAPSHOT</dans-java-utils.version>
     </properties>
 
     <scm>
