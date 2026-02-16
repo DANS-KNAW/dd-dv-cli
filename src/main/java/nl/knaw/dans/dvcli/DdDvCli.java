@@ -16,10 +16,14 @@
 
 package nl.knaw.dans.dvcli;
 
+import io.dropwizard.util.DataSize;
 import lombok.extern.slf4j.Slf4j;
 import nl.knaw.dans.dvcli.command.BannerList;
 import nl.knaw.dans.dvcli.command.BannerAdd;
 import nl.knaw.dans.dvcli.command.BannerDelete;
+import nl.knaw.dans.dvcli.command.DatasetArchiveVersion;
+import nl.knaw.dans.dvcli.command.DatasetsGetPublished;
+import nl.knaw.dans.dvcli.command.DatasetsGetStorageSize;
 import nl.knaw.dans.dvcli.command.DatasetLockAdd;
 import nl.knaw.dans.dvcli.command.DatasetLockDelete;
 import nl.knaw.dans.dvcli.command.DatasetLockList;
@@ -58,6 +62,12 @@ public class DdDvCli extends nl.knaw.dans.lib.util.AbstractCommandLineApp<DdDvCl
         commandLine.addSubcommand(new DatasetLockDelete(dataverseClient));
         commandLine.addSubcommand(new DatasetLockList(dataverseClient));
         commandLine.addSubcommand(new NotificationsTruncate(dataverseClient.database()));
+        commandLine.addSubcommand(new DatasetsGetPublished(dataverseClient.database()));
+        commandLine.addSubcommand(new DatasetsGetStorageSize(dataverseClient.database()));
+        commandLine.addSubcommand(new DatasetArchiveVersion(dataverseClient, dataverseClient.database()));
         commandLine.addSubcommand(new DepositsCreateReport());
+
+        // Must be called last to ensure it is available to subcommands (see JavaDoc of registerConverter)
+        commandLine.registerConverter(DataSize.class, DataSize::parse);
     }
 }
