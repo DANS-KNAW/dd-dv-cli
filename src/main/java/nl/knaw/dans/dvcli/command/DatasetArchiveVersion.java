@@ -75,6 +75,9 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
         String version;
     }
 
+    @Option(names = { "--skip-pids-from", "-s" }, description = "Skip PIDs from the PID-column in the given CSV file")
+    private File skipPidsFrom;
+
     @Option(names = "--force", description = "Force re-archiving of already archived versions")
     private boolean force;
 
@@ -131,13 +134,27 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
 
         List<ReportRecord> reportRecords = new ArrayList<>();
         List<String> skippedPids = new ArrayList<>();
+        List<String> pidsToSkipFromFile = new ArrayList<>();
+
+        if (skipPidsFrom != null) {
+            pidsToSkipFromFile = readPidsToSkip(skipPidsFrom);
+            skippedPids.addAll(pidsToSkipFromFile);
+        }
+
         int successCount = 0;
         int failCount = 0;
 
         for (DatasetVersionKey key : versionsToArchive) {
             if (skippedPids.contains(key.getPid())) {
-                log.info("Skipping {} {} because a previous version failed or was not archived", key.getPid(), key.getVersionString());
-                reportRecords.add(new ReportRecord(key.getPid(), key.getMajor(), key.getMinor(), "ERROR", "Skipped because a previous version of this PID failed or was not archived"));
+                if (pidsToSkipFromFile.contains(key.getPid())) {
+                    log.info("Skipping {} {} because it is in the skip-list", key.getPid(), key.getVersionString());
+                    reportRecords.add(new ReportRecord(key.getPid(), key.getMajor(), key.getMinor(), "SKIPPED", "Skipped because it is in the skip-list"));
+                }
+                else {
+                    log.info("Skipping {} {} because a previous version failed or was not archived", key.getPid(), key.getVersionString());
+                    reportRecords.add(new ReportRecord(key.getPid(), key.getMajor(), key.getMinor(), "ERROR", "Skipped because a previous version of this PID failed or was not archived"));
+                    failCount++;
+                }
                 continue;
             }
 
@@ -175,6 +192,16 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
                 int major = Integer.parseInt(record.get("MAJORVERSION"));
                 int minor = Integer.parseInt(record.get("MINORVERSION"));
                 result.add(new DatasetVersionKey(pid, major, minor));
+            }
+        }
+        return result;
+    }
+
+    private List<String> readPidsToSkip(File file) throws IOException {
+        List<String> result = new ArrayList<>();
+        try (var parser = CSVParser.parse(file, StandardCharsets.UTF_8, CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).setTrim(true).build())) {
+            for (CSVRecord record : parser) {
+                result.add(record.get("PID"));
             }
         }
         return result;
