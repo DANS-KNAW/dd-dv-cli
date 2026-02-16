@@ -26,7 +26,6 @@ import org.apache.commons.csv.CSVPrinter;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-import java.io.File;
 import java.io.PrintWriter;
 import java.sql.ResultSet;
 import java.util.ArrayList;
@@ -65,14 +64,14 @@ public class DatasetsGetStorageSize extends AbstractDatabaseCmd implements Calla
     @Option(names = { "--max-files" }, description = "Maximum number of files")
     private Long maxFiles;
 
-    @Option(names = { "-o", "--output-file" }, required = true, description = "Output CSV file")
-    private File outputFile;
+    @Option(names = { "-o", "--output-file" }, defaultValue = "-", description = "Output CSV file (default: stdout)")
+    private String outputFile;
 
     @Override
     protected Integer doCall() throws Exception {
         List<DatasetStorageInfo> results = fetchResults();
 
-        try (PrintWriter out = new PrintWriter(outputFile);
+        try (PrintWriter out = createOutputWriter();
             CSVPrinter printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder()
                 .setHeader("PID", "STORAGE", "FILES")
                 .build())) {
@@ -94,6 +93,15 @@ public class DatasetsGetStorageSize extends AbstractDatabaseCmd implements Calla
         return 0;
     }
 
+    private PrintWriter createOutputWriter() throws Exception {
+        if ("-".equals(outputFile)) {
+            return new PrintWriter(System.out, true);
+        }
+        else {
+            return new PrintWriter(outputFile);
+        }
+    }
+
     private List<DatasetStorageInfo> fetchResults() throws Exception {
         // Since we want to count each datafile only once across versions for each dataset,
         // we use a subquery to find unique (dataset, datafile) pairs first.
@@ -106,14 +114,14 @@ public class DatasetsGetStorageSize extends AbstractDatabaseCmd implements Calla
                 FROM dataset ds
                          JOIN dvobject dvo ON ds.id = dvo.id
                          JOIN datasetversion dsv ON ds.id = dsv.dataset_id
-                         JOIN filemetadata fmd ON dsv.id = fmd.datasetversion_id
-                         JOIN datafile df ON fmd.datafile_id = df.id
+                         LEFT JOIN filemetadata fmd ON dsv.id = fmd.datasetversion_id
+                         LEFT JOIN datafile df ON fmd.datafile_id = df.id
             ) AS unique_files
             GROUP BY PID
-            HAVING (? IS NULL OR SUM(filesize) >= ?)
-               AND (? IS NULL OR COUNT(datafile_id) >= ?)
-               AND (? IS NULL OR SUM(filesize) <= ?)
-               AND (? IS NULL OR COUNT(datafile_id) <= ?)
+            HAVING (SUM(filesize) IS NULL AND 0 = ?) OR (SUM(filesize) IS NOT NULL AND SUM(filesize) >= ?)
+               AND (COUNT(datafile_id) >= ?)
+               AND (SUM(filesize) IS NULL AND 0 = ?) OR (SUM(filesize) IS NOT NULL AND SUM(filesize) <= ?)
+               AND (COUNT(datafile_id) <= ?)
             ORDER BY PID ASC;
             """;
 
@@ -123,9 +131,9 @@ public class DatasetsGetStorageSize extends AbstractDatabaseCmd implements Calla
 
         Object[] parameters = new Object[] {
             minSizeBytes, minSizeBytes,
-            minFiles, minFiles,
+            minFiles,
             maxSizeBytes, maxSizeBytes,
-            maxFilesNum, maxFilesNum
+            maxFilesNum
         };
 
         try (var context = dbApi.query(query, (ResultSet rs) -> {
