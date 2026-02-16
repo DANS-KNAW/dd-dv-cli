@@ -271,7 +271,10 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
             return response.getHttpResponse().getCode() == HttpStatus.SC_OK;
         }
         catch (DataverseException e) {
-            if (e.getStatus() == HttpStatus.SC_NOT_FOUND && e.getMessage().contains("This dataset version has not been archived")) {
+            String message = e.getMessage();
+            if (e.getStatus() == HttpStatus.SC_NOT_FOUND
+                && message != null
+                && message.contains("This dataset version has not been archived")) {
                 return false; // Not archived yet
             }
             else {
