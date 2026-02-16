@@ -118,9 +118,9 @@ public class DatasetsGetStorageSize extends AbstractDatabaseCmd implements Calla
                          LEFT JOIN datafile df ON fmd.datafile_id = df.id
             ) AS unique_files
             GROUP BY PID
-            HAVING (SUM(filesize) IS NULL AND 0 = ?) OR (SUM(filesize) IS NOT NULL AND SUM(filesize) >= ?)
+            HAVING ((SUM(filesize) IS NULL AND 0 = ?) OR (SUM(filesize) IS NOT NULL AND SUM(filesize) >= ?))
                AND (COUNT(datafile_id) >= ?)
-               AND (SUM(filesize) IS NULL AND 0 = ?) OR (SUM(filesize) IS NOT NULL AND SUM(filesize) <= ?)
+               AND ((SUM(filesize) IS NULL AND 0 = ?) OR (SUM(filesize) IS NOT NULL AND SUM(filesize) <= ?))
                AND (COUNT(datafile_id) <= ?)
             ORDER BY PID ASC;
             """;
