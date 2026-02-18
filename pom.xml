@@ -28,7 +28,7 @@
     <artifactId>dd-dv-cli</artifactId>
     <version>1.0.1-SNAPSHOT</version>
 
-    <name>DD DV Cli</name>
+    <name>DD DV CLI</name>
     <url>https://github.com/DANS-KNAW/dd-dv-cli</url>
     <description>Dataverse command-line interface</description>
     <inceptionYear>2026</inceptionYear>

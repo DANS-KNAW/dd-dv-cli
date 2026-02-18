@@ -32,8 +32,10 @@ import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.FileWriter;
+import java.io.Flushable;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
@@ -42,7 +44,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.concurrent.Callable;
 
 @Command(
@@ -120,19 +124,9 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
 
     @Override
     public Integer doCall() throws Exception {
-        List<DatasetVersionKey> versionsToArchive = new ArrayList<>();
+        int successCount = 0;
+        int failCount = 0;
 
-        if (exclusiveOptions.inputFile != null) {
-            versionsToArchive.addAll(readCsv(exclusiveOptions.inputFile));
-        }
-        else {
-            String[] versionParts = exclusiveOptions.singleVersion.version.split("\\.");
-            int major = Integer.parseInt(versionParts[0]);
-            int minor = versionParts.length > 1 ? Integer.parseInt(versionParts[1]) : 0;
-            versionsToArchive.add(new DatasetVersionKey(exclusiveOptions.singleVersion.pid, major, minor));
-        }
-
-        List<ReportRecord> reportRecords = new ArrayList<>();
         List<String> skippedPids = new ArrayList<>();
         List<String> pidsToSkipFromFile = new ArrayList<>();
 
@@ -141,65 +135,113 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
             skippedPids.addAll(pidsToSkipFromFile);
         }
 
-        int successCount = 0;
-        int failCount = 0;
+        try (var versionIterator = getVersionIterator();
+            var reportWriter = new ReportWriter(reportBasename)) {
 
-        for (DatasetVersionKey key : versionsToArchive) {
-            if (skippedPids.contains(key.getPid())) {
-                if (pidsToSkipFromFile.contains(key.getPid())) {
-                    log.info("Skipping {} {} because it is in the skip-list", key.getPid(), key.getVersionString());
-                    reportRecords.add(new ReportRecord(key.getPid(), key.getMajor(), key.getMinor(), "SKIPPED", "Skipped because it is in the skip-list"));
+            while (versionIterator.hasNext()) {
+                DatasetVersionKey key = versionIterator.next();
+
+                if (skippedPids.contains(key.getPid())) {
+                    if (pidsToSkipFromFile.contains(key.getPid())) {
+                        log.info("Skipping {} {} because it is in the skip-list", key.getPid(), key.getVersionString());
+                        reportWriter.writeRecord(new ReportRecord(key.getPid(), key.getMajor(), key.getMinor(), "SKIPPED", "Skipped because it is in the skip-list"));
+                    }
+                    else {
+                        log.info("Skipping {} {} because a previous version failed or was not archived", key.getPid(), key.getVersionString());
+                        reportWriter.writeRecord(new ReportRecord(key.getPid(), key.getMajor(), key.getMinor(), "ERROR", "Skipped because a previous version of this PID failed or was not archived"));
+                        failCount++;
+                    }
+                    continue;
                 }
-                else {
-                    log.info("Skipping {} {} because a previous version failed or was not archived", key.getPid(), key.getVersionString());
-                    reportRecords.add(new ReportRecord(key.getPid(), key.getMajor(), key.getMinor(), "ERROR", "Skipped because a previous version of this PID failed or was not archived"));
+
+                if (waitBetweenItems > 0 && (successCount > 0 || failCount > 0)) {
+                    log.info("Waiting {} seconds before processing next item...", waitBetweenItems);
+                    Thread.sleep(waitBetweenItems * 1000L);
+                }
+
+                try {
+                    processVersion(key);
+                    reportWriter.writeRecord(new ReportRecord(key.getPid(), key.getMajor(), key.getMinor(), "OK", "Version archived successfully"));
+                    successCount++;
+                }
+                catch (Exception e) {
+                    log.error("Failed to archive {} {}: {}", key.getPid(), key.getVersionString(), e.getMessage());
+                    skippedPids.add(key.getPid());
+                    reportWriter.writeRecord(new ReportRecord(key.getPid(), key.getMajor(), key.getMinor(), "ERROR", e.getMessage()));
                     failCount++;
                 }
-                continue;
             }
-
-            if (waitBetweenItems > 0 && (successCount > 0 || failCount > 0)) {
-                log.info("Waiting {} seconds before processing next item...", waitBetweenItems);
-                Thread.sleep(waitBetweenItems * 1000L);
-            }
-
-            try {
-                processVersion(key);
-                reportRecords.add(new ReportRecord(key.getPid(), key.getMajor(), key.getMinor(), "OK", "Version archived successfully"));
-                successCount++;
-            }
-            catch (Exception e) {
-                log.error("Failed to archive {} {}: {}", key.getPid(), key.getVersionString(), e.getMessage());
-                skippedPids.add(key.getPid());
-                reportRecords.add(new ReportRecord(key.getPid(), key.getMajor(), key.getMinor(), "ERROR", e.getMessage()));
-                failCount++;
-            }
-        }
-
-        if (reportBasename != null) {
-            writeReport(reportRecords);
         }
 
         log.info("Finished: {} succeeded, {} failed/skipped", successCount, failCount);
         return failCount == 0 ? 0 : 1;
     }
 
-    private List<DatasetVersionKey> readCsv(File file) throws IOException {
-        List<DatasetVersionKey> result = new ArrayList<>();
-        try (var parser = CSVParser.parse(file, StandardCharsets.UTF_8, CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).setTrim(true).build())) {
-            for (CSVRecord record : parser) {
+    private CloseableIterator<DatasetVersionKey> getVersionIterator() throws IOException {
+        if (exclusiveOptions.inputFile != null) {
+            return readCsv(exclusiveOptions.inputFile);
+        }
+        else {
+            String[] versionParts = exclusiveOptions.singleVersion.version.split("\\.");
+            int major = Integer.parseInt(versionParts[0]);
+            int minor = versionParts.length > 1 ? Integer.parseInt(versionParts[1]) : 0;
+            DatasetVersionKey key = new DatasetVersionKey(exclusiveOptions.singleVersion.pid, major, minor);
+            return new CloseableIterator<>() {
+                private boolean hasNext = true;
+
+                @Override
+                public void close() {
+                }
+
+                @Override
+                public boolean hasNext() {
+                    return hasNext;
+                }
+
+                @Override
+                public DatasetVersionKey next() {
+                    if (!hasNext) {
+                        throw new NoSuchElementException();
+                    }
+                    hasNext = false;
+                    return key;
+                }
+            };
+        }
+    }
+
+    private interface CloseableIterator<T> extends Iterator<T>, Closeable {
+    }
+
+    private CloseableIterator<DatasetVersionKey> readCsv(File file) throws IOException {
+        var parser = CSVParser.parse(file, StandardCharsets.UTF_8, CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).setTrim(true).get());
+        var recordIterator = parser.iterator();
+
+        return new CloseableIterator<>() {
+            @Override
+            public void close() throws IOException {
+                parser.close();
+            }
+
+            @Override
+            public boolean hasNext() {
+                return recordIterator.hasNext();
+            }
+
+            @Override
+            public DatasetVersionKey next() {
+                CSVRecord record = recordIterator.next();
                 String pid = record.get("PID");
                 int major = Integer.parseInt(record.get("MAJORVERSION"));
                 int minor = Integer.parseInt(record.get("MINORVERSION"));
-                result.add(new DatasetVersionKey(pid, major, minor));
+                return new DatasetVersionKey(pid, major, minor);
             }
-        }
-        return result;
+        };
     }
 
     private List<String> readPidsToSkip(File file) throws IOException {
         List<String> result = new ArrayList<>();
-        try (var parser = CSVParser.parse(file, StandardCharsets.UTF_8, CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).setTrim(true).build())) {
+        try (var parser = CSVParser.parse(file, StandardCharsets.UTF_8, CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).setTrim(true).get())) {
             for (CSVRecord record : parser) {
                 result.add(record.get("PID"));
             }
@@ -310,18 +352,43 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
         }
     }
 
-    private void writeReport(List<ReportRecord> records) throws IOException {
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH:mm:ss"));
-        File reportFile = new File(reportBasename + "-" + timestamp + ".csv");
-        try (PrintWriter out = new PrintWriter(new FileWriter(reportFile));
-            CSVPrinter printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder()
-                .setHeader("PID", "MAJORVERSION", "MINORVERSION", "RESULT", "MESSAGE")
-                .build())) {
-            for (ReportRecord record : records) {
-                printer.printRecord(record.getPid(), record.getMajor(), record.getMinor(), record.getResult(), record.getMessage());
+    private static class ReportWriter implements Closeable{
+        private final CSVPrinter printer;
+        private final File reportFile;
+        private final PrintWriter out;
+
+        public ReportWriter(String reportBasename) throws IOException {
+            if (reportBasename != null) {
+                String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH:mm:ss"));
+                this.reportFile = new File(reportBasename + "-" + timestamp + ".csv");
+                this.out = new PrintWriter(new FileWriter(reportFile), true);
+                this.printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder()
+                    .setHeader("PID", "MAJORVERSION", "MINORVERSION", "RESULT", "MESSAGE")
+                    .get());
             }
-            printer.flush();
+            else {
+                this.printer = null;
+                this.reportFile = null;
+                this.out = null;
+            }
         }
-        log.info("Report written to {}", reportFile.getAbsolutePath());
+
+        public void writeRecord(ReportRecord record) throws IOException {
+            if (printer != null) {
+                printer.printRecord(record.getPid(), record.getMajor(), record.getMinor(), record.getResult(), record.getMessage());
+                // Ensure data is written to disk immediately; PrintWriter's autoFlush only works for println/printf/format.
+                printer.flush();
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (printer != null) {
+                printer.flush();
+                printer.close();
+                out.close();
+                log.info("Report written to {}", reportFile.getAbsolutePath());
+            }
+        }
     }
 }
