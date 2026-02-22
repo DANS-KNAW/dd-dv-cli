@@ -42,7 +42,7 @@ public class BannerAdd implements Callable<Integer> {
     private List<String> languages = new ArrayList<>();
 
     @Option(names = {"--dismissible"}, description = "Whether the banner can be dismissed by the user")
-    private boolean dismissibleByUser = true;
+    private boolean dismissibleByUser = false;
 
     @Override
     public Integer call() throws Exception {
