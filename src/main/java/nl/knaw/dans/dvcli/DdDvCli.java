@@ -29,6 +29,7 @@ import nl.knaw.dans.dvcli.command.DatasetLockDelete;
 import nl.knaw.dans.dvcli.command.DatasetLockList;
 import nl.knaw.dans.dvcli.command.NotificationsTruncate;
 import nl.knaw.dans.dvcli.command.DepositsCreateReport;
+import nl.knaw.dans.dvcli.command.UsersImport;
 import nl.knaw.dans.lib.util.PicocliVersionProvider;
 import nl.knaw.dans.dvcli.config.DdDvCliConfig;
 import picocli.CommandLine;
@@ -65,6 +66,7 @@ public class DdDvCli extends nl.knaw.dans.lib.util.AbstractCommandLineApp<DdDvCl
         commandLine.addSubcommand(new DatasetsGetPublished(dataverseClient.database()));
         commandLine.addSubcommand(new DatasetsGetStorageSize(dataverseClient.database()));
         commandLine.addSubcommand(new DatasetArchiveVersion(dataverseClient, dataverseClient.database()));
+        commandLine.addSubcommand(new UsersImport(dataverseClient));
         commandLine.addSubcommand(new DepositsCreateReport());
 
         // Must be called last to ensure it is available to subcommands (see JavaDoc of registerConverter)
