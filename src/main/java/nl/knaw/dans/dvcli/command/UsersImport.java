@@ -27,7 +27,8 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 import java.io.BufferedReader;
-import java.io.FileReader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -38,7 +39,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class UsersImport extends AbstractDatabaseCmd {
     @Option(names = { "-i", "--input-csv" }, required = true, description = "CSV file containing users and initial passwords")
-    private String inputCsv;
+    private Path inputCsv;
 
     @Option(names = { "-k", "--builtin-users-key" }, required = true, description = ":BuiltinUsersKey set in Dataverse (BuiltinUsers.KEY up to v6.8)")
     private String builtinUsersKey;
@@ -52,6 +53,8 @@ public class UsersImport extends AbstractDatabaseCmd {
     protected Integer doCall() throws Exception {
         log.info("Importing users from CSV: {}", inputCsv);
         List<Pair<BuiltinUser, String>> users = readUsersFromCsv(inputCsv);
+        int count = 0;
+        int errors = 0;
         for (var pair : users) {
             var user = pair.getLeft();
             var password = pair.getRight();
@@ -63,17 +66,20 @@ public class UsersImport extends AbstractDatabaseCmd {
                 .create(user, password);
             if (response != null && "OK".equalsIgnoreCase(response.getEnvelope().getStatus())) {
                 log.info("Imported user {}", user.getUserName());
+                count++;
             }
             else {
                 log.error("Error creating user {}: {}", user.getUserName(), response != null ? response.getEnvelope().getMessage() : "null");
+                errors++;
             }
         }
+        System.err.println("Imported " + count + " users, with " + errors + " errors");
         return 0;
     }
 
-    private List<Pair<BuiltinUser, String>> readUsersFromCsv(String csvFile) throws Exception {
+    private List<Pair<BuiltinUser, String>> readUsersFromCsv(Path csvFile) throws Exception {
         List<Pair<BuiltinUser, String>> users = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(new FileReader(csvFile));
+        try (BufferedReader reader = Files.newBufferedReader(csvFile);
             CSVParser parser = CSVFormat.DEFAULT.builder().setHeader().setSkipHeaderRecord(true).get().parse(reader)) {
             for (CSVRecord record : parser) {
                 var user = new BuiltinUser();
