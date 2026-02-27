@@ -35,8 +35,12 @@ public class DatasetGetStorageDriver extends AbstractDatasetCmd implements Calla
         try {
             var response = getDatasetApi().getStorageDriver();
             var driver = response.getData();
-            System.out.printf("%-10s %s%n", "LABEL:", driver.getLabel());
-            System.out.printf("%-10s %s%n", "ID:", driver.getName());
+            if (driver.getLabel() != null) {
+                System.out.printf("%-10s %s%n", "LABEL:", driver.getLabel());
+            } else {
+                System.err.println("No label returned (older version of Dataverse)");
+            }
+            System.out.printf("%-10s %s%n", "ID:", driver.getName() == null ? driver.getMessage() : driver.getName());
             return 0;
         }
         catch (DataverseException e) {
