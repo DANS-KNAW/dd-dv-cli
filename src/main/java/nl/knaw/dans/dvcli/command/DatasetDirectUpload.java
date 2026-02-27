@@ -145,17 +145,25 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
         long partSize = uploadUrls.getPartSize();
         Map<String, String> partUrls = uploadUrls.getUrls();
 
-        try (InputStream is = new BufferedInputStream(new FileInputStream(file.toFile()))) {
-            for (Map.Entry<String, String> entry : partUrls.entrySet()) {
-                String partNumber = entry.getKey();
-                String url = entry.getValue();
+        long fileSize = Files.size(file);
+        for (Map.Entry<String, String> entry : partUrls.entrySet()) {
+            String partNumber = entry.getKey();
+            String url = entry.getValue();
 
-                log.debug("Uploading part {} to {}", partNumber, url);
-                HttpPut putRequest = new HttpPut(url);
+            log.debug("Uploading part {} to {}", partNumber, url);
+            HttpPut putRequest = new HttpPut(url);
 
-                long remaining = Files.size(file) - (Long.parseLong(partNumber) - 1) * partSize;
-                long currentPartSize = Math.min(partSize, remaining);
+            long offset = (Long.parseLong(partNumber) - 1) * partSize;
+            long remaining = fileSize - offset;
+            long currentPartSize = Math.min(partSize, remaining);
 
+            try (InputStream is = new BufferedInputStream(new FileInputStream(file.toFile()))) {
+                if (offset > 0) {
+                    long skipped = is.skip(offset);
+                    if (skipped != offset) {
+                        throw new IOException("Failed to skip to offset " + offset + " for part " + partNumber);
+                    }
+                }
                 putRequest.setEntity(new InputStreamEntity(is, currentPartSize, ContentType.APPLICATION_OCTET_STREAM));
 
                 String etag = httpClient.execute(putRequest, response -> {
@@ -169,7 +177,6 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
         }
 
         log.info("Completing multi-part upload");
-        var httpClientWrapper = getDatasetApi().getHttpClientWrapper();
         String completeUrl = baseUrl.toString() + (baseUrl.toString().endsWith("/") ? "" : "/") + uploadUrls.getComplete();
         HttpPut completeRequest = new HttpPut(completeUrl);
 
