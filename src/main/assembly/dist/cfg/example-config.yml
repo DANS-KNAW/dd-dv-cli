@@ -14,19 +14,9 @@ api:
 # See https://www.dropwizard.io/en/latest/manual/configuration.html#logging
 #
 logging:
-  level: WARN
-  loggers:
-    'nl.knaw.dans': DEBUG
-    'nl.knaw.dans.dvcli.command.DatasetDirectUpload':
-      level: INFO
-      additive: false
+  level: INFO
   appenders:
     - type: file
       archive: false
-      logFormat: "%-5p [%d{ISO8601}] [%t] %c: %m%n%rEx"
       timeZone: system
       currentLogFilename: ${HOME}/dv.log
-      threshold: DEBUG
-    - type: console
-      logFormat: "%-5p [%d{ISO8601}] [%t] %c: %m%n%rEx"
-      threshold: WARN
