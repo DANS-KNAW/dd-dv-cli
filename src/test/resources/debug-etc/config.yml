@@ -6,6 +6,11 @@ api:
   databaseUser: "dvnuser"
   databasePassword: "dvnsecret"
 
+  # The public base URL of the Dataverse instance. If running dv on a different machine, this will differ from api.baseUrl.
+  # This setting is required when using dv dataset-direct-upload.
+  #externalBaseUrl: https://your-dataverse-instance.com
+
+
 #
 # See https://www.dropwizard.io/en/latest/manual/configuration.html#logging
 #

@@ -83,14 +83,17 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
 
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             log.info("Requesting upload URLs for file size: {}", fileSize);
+            System.err.print("Requesting upload URLs for file size: " + fileSize + "...");
             DirectUploadURLs uploadUrls = getDatasetApi().getUploadUrls(fileSize).getData();
-
+            System.err.println("OK");
             if (uploadUrls.getUrl() != null) {
-                // Single-part upload
+                System.err.println("Single part upload");
+                log.info("Single part upload");
                 uploadSinglePart(httpClient, uploadUrls.getUrl(), file);
             }
             else if (uploadUrls.getUrls() != null) {
-                // Multi-part upload
+                System.err.println("Multi part upload");
+                log.info("Multi part upload");
                 uploadMultiPart(httpClient, uploadUrls, file);
             }
             else {
@@ -98,6 +101,7 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
             }
 
             log.info("Registering file in Dataverse");
+            System.err.print("Registering file in Dataverse...");
             PrestagedFile prestagedFile = new PrestagedFile();
             prestagedFile.setStorageIdentifier(uploadUrls.getStorageIdentifier());
             prestagedFile.setFileName(file.getFileName().toString());
@@ -110,7 +114,7 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
             prestagedFile.setDirectoryLabel(directoryLabel);
 
             var response = getDatasetApi().addFile(prestagedFile);
-            System.out.println("File registered successfully.");
+            System.err.println("OK");
             log.debug("Response: {}", response.getEnvelopeAsString());
 
             return 0;
@@ -151,6 +155,7 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
             String url = entry.getValue();
 
             log.debug("Uploading part {} to {}", partNumber, url);
+            System.err.print("Uploading part " + partNumber + " of " + partUrls.size() + "...");
             HttpPut putRequest = new HttpPut(url);
 
             long offset = (Long.parseLong(partNumber) - 1) * partSize;
@@ -174,9 +179,11 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
                 });
                 etags.put(partNumber, etag);
             }
+            System.err.println("OK");
         }
 
         log.info("Completing multi-part upload");
+        System.err.print("Completing multi-part upload...");
         String completeUrl = baseUrl.toString() + (baseUrl.toString().endsWith("/") ? "" : "/") + uploadUrls.getComplete();
         HttpPut completeRequest = new HttpPut(completeUrl);
 
@@ -188,7 +195,10 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
             if (response.getCode() >= 300) {
                 throw new IOException("Failed to complete multi-part upload: " + response.getReasonPhrase());
             }
+            System.err.println("OK");
             return null;
         });
+
+        System.err.println("File registered successfully.");
     }
 }
