@@ -16,13 +16,16 @@
 
 package nl.knaw.dans.dvcli.config;
 
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.dropwizard.core.Configuration;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import nl.knaw.dans.convert.jackson.UriAddTrailingSlashConverter;
 import nl.knaw.dans.lib.util.DataverseClientFactory;
 
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
+import java.net.URI;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -30,4 +33,8 @@ public class DdDvCliConfig extends Configuration {
   @NotNull
   @Valid
   private DataverseClientFactory api;
+
+  @Valid
+  @JsonDeserialize(converter = UriAddTrailingSlashConverter.class)
+  private URI externalBaseUrl;
 }

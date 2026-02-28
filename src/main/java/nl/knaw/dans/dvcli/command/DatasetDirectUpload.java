@@ -77,9 +77,11 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
 
         long fileSize = Files.size(file);
         String sha1Checksum;
+        System.err.print("Checksumming file " + file + "...");
         try (InputStream is = Files.newInputStream(file)) {
             sha1Checksum = DigestUtils.sha1Hex(is);
         }
+        System.err.println("OK");
 
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             log.info("Requesting upload URLs for file size: {}", fileSize);
