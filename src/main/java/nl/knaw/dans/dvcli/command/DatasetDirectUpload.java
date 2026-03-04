@@ -59,8 +59,8 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
     @Option(names = { "--directory-label" }, description = "Directory label for the file in the dataset")
     private String directoryLabel;
 
-    @Option(names = { "--description" }, description = "Description for the file")
-    private String description = "File uploaded via dd-dv-cli";
+    @Option(names = { "--description" }, description = "Description for the file", defaultValue = "")
+    private String description;
 
     public DatasetDirectUpload(DataverseClient dataverseClient, URI baseUrl, String apiToken) {
         super(dataverseClient);
