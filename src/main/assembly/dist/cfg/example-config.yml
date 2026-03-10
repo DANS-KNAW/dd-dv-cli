@@ -8,7 +8,12 @@ api:
 
 # The public base URL of the Dataverse instance. If running dv on a different machine, this will differ from api.baseUrl.
 # This setting is required when using dv dataset-direct-upload.
-#externalBaseUrl: https://your-dataverse-instance.com
+externalBaseUrl: https://your-dataverse-instance.com
+
+archivalCopy:
+    outbox: /var/opt/dans.knaw.nl/tmp/dve-outbox
+    freeSpaceMargin: 5G
+    sleep: 1 minute
 
 #
 # See https://www.dropwizard.io/en/latest/manual/configuration.html#logging

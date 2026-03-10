@@ -15,11 +15,14 @@
  */
 package nl.knaw.dans.dvcli.command;
 
+import io.dropwizard.util.DataSize;
+import io.dropwizard.util.Duration;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import nl.knaw.dans.dvcli.config.ArchivalCopyConfig;
 import nl.knaw.dans.lib.dataverse.DatabaseApi;
 import nl.knaw.dans.lib.dataverse.DataverseClient;
 import nl.knaw.dans.lib.dataverse.DataverseException;
@@ -35,10 +38,11 @@ import picocli.CommandLine.Option;
 import java.io.Closeable;
 import java.io.File;
 import java.io.FileWriter;
-import java.io.Flushable;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.ResultSet;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -59,6 +63,7 @@ import java.util.concurrent.Callable;
 public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callable<Integer> {
     private final DataverseClient dataverseClient;
     private final DatabaseApi dbApi;
+    private final ArchivalCopyConfig archivalCopyConfig;
 
     @ArgGroup(multiplicity = "1")
     private ExclusiveOptions exclusiveOptions;
@@ -84,6 +89,9 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
 
     @Option(names = { "--force", "-f" }, description = "Force re-archiving of already archived versions")
     private boolean force;
+
+    @Option(names = { "--allow-rearchive-older-versions" }, description = "Allow re-archiving of older versions, even if newer, archived versions exist. Implies --force")
+    private boolean allowRearchiveOlderVersions;
 
     @Option(names = { "--report", "-r" }, description = "Basename of the report containing skipped PIDs", required = true)
     private String reportBasename;
@@ -124,6 +132,10 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
 
     @Override
     public Integer doCall() throws Exception {
+        if (allowRearchiveOlderVersions) {
+            force = true;
+        }
+
         int successCount = 0;
         int failCount = 0;
 
@@ -159,6 +171,8 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
                     Thread.sleep(waitBetweenItems * 1000L);
                 }
 
+                checkFreeSpace();
+
                 try {
                     processVersion(key);
                     reportWriter.writeRecord(new ReportRecord(key.getPid(), key.getMajor(), key.getMinor(), "OK", "Version archived successfully"));
@@ -177,6 +191,27 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
         return failCount == 0 ? 0 : 1;
     }
 
+    private long availableSpaceAt(Path target) throws IOException {
+        try {
+            return Files.getFileStore(target).getUsableSpace();
+        }
+        catch (IOException e) {
+            log.warn("Failed to determine available space at {}: {}", target, e.getMessage());
+            return -1;
+        }
+    }
+
+    private void checkFreeSpace() throws IOException, InterruptedException {
+        if (archivalCopyConfig != null) {
+            Path outbox = archivalCopyConfig.getOutbox();
+            long margin = archivalCopyConfig.getFreeSpaceMargin().toBytes();
+            while (availableSpaceAt(outbox) < margin) {
+                log.info("Not enough free space at {}. Waiting {} before retrying...", outbox, archivalCopyConfig.getSleep());
+                Thread.sleep(archivalCopyConfig.getSleep().toMilliseconds());
+            }
+        }
+    }
+
     private CloseableIterator<DatasetVersionKey> getVersionIterator() throws IOException {
         if (exclusiveOptions.inputFile != null) {
             return readCsv(exclusiveOptions.inputFile);
@@ -187,6 +222,7 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
             int minor = versionParts.length > 1 ? Integer.parseInt(versionParts[1]) : 0;
             DatasetVersionKey key = new DatasetVersionKey(exclusiveOptions.singleVersion.pid, major, minor);
             return new CloseableIterator<>() {
+
                 private boolean hasNext = true;
 
                 @Override
@@ -218,6 +254,7 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
         var recordIterator = parser.iterator();
 
         return new CloseableIterator<>() {
+
             @Override
             public void close() throws IOException {
                 parser.close();
@@ -259,7 +296,7 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
                 String vStr = v.getMajor() + "." + v.getMinor();
                 throw new IllegalStateException("Preceding version " + vStr + " is not archived");
             }
-            if (isDatasetVersionKeyFollowedBy(key, v) && v.isArchived()) {
+            if (isDatasetVersionKeyFollowedBy(key, v) && v.isArchived() && !allowRearchiveOlderVersions) {
                 String vStr = v.getMajor() + "." + v.getMinor();
                 throw new IllegalStateException("Succeeding version " + vStr + " is already archived; refusing to archive " + key.getVersionString());
             }
@@ -352,7 +389,7 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
         }
     }
 
-    private static class ReportWriter implements Closeable{
+    private static class ReportWriter implements Closeable {
         private final CSVPrinter printer;
         private final File reportFile;
         private final PrintWriter out;

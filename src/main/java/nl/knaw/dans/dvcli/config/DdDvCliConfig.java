@@ -37,4 +37,7 @@ public class DdDvCliConfig extends Configuration {
   @Valid
   @JsonDeserialize(converter = UriAddTrailingSlashConverter.class)
   private URI externalBaseUrl;
+
+  @Valid
+  private ArchivalCopyConfig archivalCopy;
 }
