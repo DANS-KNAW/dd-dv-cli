@@ -69,8 +69,13 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
     @Option(names = { "--resume" }, description = "Resume the upload from the upload-state file")
     private boolean resume;
 
+    @Option(names = {
+        "--skip-checksum-on-resume" }, description = "Skip the checksum verification step when resuming an upload. Use with caution, "
+        + "as this may lead to data corruption if the file has changed since the upload was started.", defaultValue = "false")
+    private boolean skipChecksumOnResume;
+
     @Option(names = { "--keep-upload-state" }, description = "Prevent the upload-state file from being automatically deleted. Note that the upload-state "
-        + "file is always created for a multi-part upload; this option only controls whether it is deleted after a successful upload.")
+        + "file is always created for a multi-part upload; this option only controls whether it is deleted after a successful upload.", defaultValue = "false")
     private boolean keepUploadState;
 
     private Path stateFile;
@@ -108,10 +113,30 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
             System.err.print("Resuming upload from " + stateFile + "...");
             state = objectMapper.readValue(stateFile.toFile(), DirectUploadState.class);
             var resumeFile = Path.of(state.getFile());
+            System.err.print("Checking path in upload state file...");
             if (!file.equals(resumeFile)) {
                 System.err.println("FAILED");
                 System.err.println("File in upload state (" + resumeFile + ") does not match file specified on command line (" + file + ")");
                 return 1;
+            }
+            System.err.println("OK");
+            System.err.print("Checking file size in upload state file..");
+            if (state.getFileSize() != Files.size(file)) {
+                System.err.println("FAILED");
+                System.err.println("File size in upload state does not match actual file size");
+                return 1;
+            }
+            if (!skipChecksumOnResume) {
+                String sha1Checksum;
+                System.err.print("Checksumming file " + file + "...");
+                try (InputStream is = Files.newInputStream(file)) {
+                    sha1Checksum = DigestUtils.sha1Hex(is);
+                }
+                if (!sha1Checksum.equals(state.getSha1Checksum())) {
+                    System.err.println("FAILED");
+                    System.err.println("SHA-1 checksum in upload state does not match actual file checksum");
+                    return 1;
+                }
             }
             System.err.println("OK");
         }
