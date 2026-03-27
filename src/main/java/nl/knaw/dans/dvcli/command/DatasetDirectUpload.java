@@ -57,7 +57,10 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
     @Parameters(index = "1", paramLabel = "FILE", description = "Path to the file to upload")
     private Path file;
 
-    @Option(names = { "--directory-label" }, description = "Directory label for the file in the dataset")
+    @Option(names = {"--label"}, description = "Label for the file in the dataset (defaults to the file name)")
+    private String label;
+
+    @Option(names = { "--directory-label", "-d" }, description = "Directory label for the file in the dataset")
     private String directoryLabel;
 
     @Option(names = { "--description" }, description = "Description for the file", defaultValue = "")
@@ -154,7 +157,7 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
             System.err.print("Registering file in Dataverse...");
             PrestagedFile prestagedFile = new PrestagedFile();
             prestagedFile.setStorageIdentifier(state.getUploadUrls().getStorageIdentifier());
-            prestagedFile.setFileName(file.getFileName().toString());
+            prestagedFile.setFileName(label != null ? label : file.getFileName().toString());
             prestagedFile.setMimeType(Files.probeContentType(file));
             if (prestagedFile.getMimeType() == null) {
                 prestagedFile.setMimeType("application/octet-stream");
