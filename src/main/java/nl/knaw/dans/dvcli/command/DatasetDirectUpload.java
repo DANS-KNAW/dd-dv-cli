@@ -62,6 +62,16 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
     @Option(names = { "--description" }, description = "Description for the file", defaultValue = "")
     private String description;
 
+    @Option(names = { "--resume" }, description = "Resume the upload from the upload-state file")
+    private boolean resume;
+
+    @Option(names = { "--keep-upload-state" }, description = "Prevent the upload-state file from being automatically deleted")
+    private boolean keepUploadState;
+
+    private Path stateFile;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     public DatasetDirectUpload(DataverseClient dataverseClient, URI baseUrl, String apiToken) {
         super(dataverseClient);
         this.baseUrl = baseUrl;
@@ -75,28 +85,65 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
             return 1;
         }
 
-        long fileSize = Files.size(file);
-        String sha1Checksum;
-        System.err.print("Checksumming file " + file + "...");
-        try (InputStream is = Files.newInputStream(file)) {
-            sha1Checksum = DigestUtils.sha1Hex(is);
+        stateFile = Path.of(file.getFileName().toString() + "-upload-state.json");
+
+        if (Files.exists(stateFile) && !resume) {
+            System.err.println("Upload state file already exists: " + stateFile);
+            System.err.println("Either delete it or specify --resume to continue the upload.");
+            return 1;
         }
-        System.err.println("OK");
+
+        if (resume && !Files.exists(stateFile)) {
+            System.err.println("Upload state file not found: " + stateFile);
+            return 1;
+        }
+
+        DirectUploadState state;
+        if (resume) {
+            System.err.print("Resuming upload from " + stateFile + "...");
+            state = objectMapper.readValue(stateFile.toFile(), DirectUploadState.class);
+            file = Path.of(state.getFile());
+            if (!Files.exists(file)) {
+                System.err.println("FAILED");
+                System.err.println("File to upload not found: " + file);
+                return 1;
+            }
+            System.err.println("OK");
+        }
+        else {
+            long fileSize = Files.size(file);
+            String sha1Checksum;
+            System.err.print("Checksumming file " + file + "...");
+            try (InputStream is = Files.newInputStream(file)) {
+                sha1Checksum = DigestUtils.sha1Hex(is);
+            }
+            System.err.println("OK");
+            state = DirectUploadState.builder()
+                .file(file.toAbsolutePath().toString())
+                .fileSize(fileSize)
+                .sha1Checksum(sha1Checksum)
+                .etags(new HashMap<>())
+                .build();
+        }
 
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            log.info("Requesting upload URLs for file size: {}", fileSize);
-            System.err.print("Requesting upload URLs for file size: " + fileSize + "...");
-            DirectUploadURLs uploadUrls = getDatasetApi().getUploadUrls(fileSize).getData();
-            System.err.println("OK");
-            if (uploadUrls.getUrl() != null) {
+            if (state.getUploadUrls() == null) {
+                log.info("Requesting upload URLs for file size: {}", state.getFileSize());
+                System.err.print("Requesting upload URLs for file size: " + state.getFileSize() + "...");
+                DirectUploadURLs uploadUrls = getDatasetApi().getUploadUrls(state.getFileSize()).getData();
+                state.setUploadUrls(uploadUrls);
+                System.err.println("OK");
+            }
+
+            if (state.getUploadUrls().getUrl() != null) {
                 System.err.println("Single part upload");
                 log.info("Single part upload");
-                uploadSinglePart(httpClient, uploadUrls.getUrl(), file);
+                uploadSinglePart(httpClient, state.getUploadUrls().getUrl(), file);
             }
-            else if (uploadUrls.getUrls() != null) {
+            else if (state.getUploadUrls().getUrls() != null) {
                 System.err.println("Multi part upload");
                 log.info("Multi part upload");
-                uploadMultiPart(httpClient, uploadUrls, file);
+                uploadMultiPart(httpClient, state);
             }
             else {
                 throw new IllegalStateException("No upload URL(s) provided by Dataverse");
@@ -105,19 +152,24 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
             log.info("Registering file in Dataverse");
             System.err.print("Registering file in Dataverse...");
             PrestagedFile prestagedFile = new PrestagedFile();
-            prestagedFile.setStorageIdentifier(uploadUrls.getStorageIdentifier());
+            prestagedFile.setStorageIdentifier(state.getUploadUrls().getStorageIdentifier());
             prestagedFile.setFileName(file.getFileName().toString());
             prestagedFile.setMimeType(Files.probeContentType(file));
             if (prestagedFile.getMimeType() == null) {
                 prestagedFile.setMimeType("application/octet-stream");
             }
-            prestagedFile.setChecksum(new Checksum("SHA-1", sha1Checksum));
+            prestagedFile.setChecksum(new Checksum("SHA-1", state.getSha1Checksum()));
             prestagedFile.setDescription(description);
             prestagedFile.setDirectoryLabel(directoryLabel);
 
             var response = getDatasetApi().addFile(prestagedFile);
             System.err.println("OK");
             log.debug("Response: {}", response.getEnvelopeAsString());
+
+            if (stateFile != null && !keepUploadState) {
+                Files.deleteIfExists(stateFile);
+                System.err.println("Upload state file " + stateFile + " deleted");
+            }
 
             return 0;
         }
@@ -145,16 +197,24 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
         });
     }
 
-    private void uploadMultiPart(CloseableHttpClient httpClient, DirectUploadURLs uploadUrls, Path file) throws IOException {
+    private void uploadMultiPart(CloseableHttpClient httpClient, DirectUploadState state) throws IOException {
         log.info("Performing multi-part upload to S3");
-        Map<String, String> etags = new HashMap<>();
+        DirectUploadURLs uploadUrls = state.getUploadUrls();
+        Map<String, String> etags = state.getEtags();
         long partSize = uploadUrls.getPartSize();
         Map<String, String> partUrls = uploadUrls.getUrls();
+        Path file = Path.of(state.getFile());
+        long fileSize = state.getFileSize();
 
-        long fileSize = Files.size(file);
         for (Map.Entry<String, String> entry : partUrls.entrySet()) {
             String partNumber = entry.getKey();
             String url = entry.getValue();
+
+            if (etags.containsKey(partNumber)) {
+                log.info("Part {} already uploaded, skipping", partNumber);
+                System.err.println("Part " + partNumber + " of " + partUrls.size() + "...SKIPPED");
+                continue;
+            }
 
             log.debug("Uploading part {} to {}", partNumber, url);
             System.err.print("Uploading part " + partNumber + " of " + partUrls.size() + "...");
@@ -180,6 +240,7 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
                     return response.getFirstHeader("ETag").getValue();
                 });
                 etags.put(partNumber, etag);
+                objectMapper.writerWithDefaultPrettyPrinter().writeValue(stateFile.toFile(), state);
             }
             System.err.println("OK");
         }
@@ -190,7 +251,6 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
         HttpPut completeRequest = new HttpPut(completeUrl);
 
         completeRequest.setHeader("X-Dataverse-key", apiToken);
-        var objectMapper = new ObjectMapper();
         completeRequest.setEntity(new StringEntity(objectMapper.writeValueAsString(etags), ContentType.APPLICATION_JSON));
 
         httpClient.execute(completeRequest, response -> {
