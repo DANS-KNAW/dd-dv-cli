@@ -107,10 +107,10 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
         if (resume) {
             System.err.print("Resuming upload from " + stateFile + "...");
             state = objectMapper.readValue(stateFile.toFile(), DirectUploadState.class);
-            file = Path.of(state.getFile());
-            if (!Files.exists(file)) {
+            var resumeFile = Path.of(state.getFile());
+            if (!file.equals(resumeFile)) {
                 System.err.println("FAILED");
-                System.err.println("File to upload not found: " + file);
+                System.err.println("File in upload state (" + resumeFile + ") does not match file specified on command line (" + file + ")");
                 return 1;
             }
             System.err.println("OK");
