@@ -129,6 +129,7 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
                 System.err.println("File size in upload state does not match actual file size");
                 return 1;
             }
+            System.err.println("OK");
             if (!skipChecksumOnResume) {
                 String sha1Checksum;
                 System.err.print("Checksumming file " + file + "...");
@@ -175,8 +176,8 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
                 uploadSinglePart(httpClient, state.getUploadUrls().getUrl(), file);
             }
             else if (state.getUploadUrls().getUrls() != null) {
-                System.err.println("Multi part upload");
-                log.info("Multi part upload");
+                System.err.println("Multi-part upload");
+                log.info("Multi-part upload");
                 uploadMultiPart(httpClient, state);
             }
             else {
