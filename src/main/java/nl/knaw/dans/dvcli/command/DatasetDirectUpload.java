@@ -57,7 +57,7 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
     @Parameters(index = "1", paramLabel = "FILE", description = "Path to the file to upload")
     private Path file;
 
-    @Option(names = {"--label"}, description = "Label for the file in the dataset (defaults to the file name)")
+    @Option(names = { "--label" }, description = "Label for the file in the dataset (defaults to the file name)")
     private String label;
 
     @Option(names = { "--directory-label", "-d" }, description = "Directory label for the file in the dataset")
@@ -69,7 +69,8 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
     @Option(names = { "--resume" }, description = "Resume the upload from the upload-state file")
     private boolean resume;
 
-    @Option(names = { "--keep-upload-state" }, description = "Prevent the upload-state file from being automatically deleted")
+    @Option(names = { "--keep-upload-state" }, description = "Prevent the upload-state file from being automatically deleted. Note that the upload-state "
+        + "file is always created for a multi-part upload; this option only controls whether it is deleted after a successful upload.")
     private boolean keepUploadState;
 
     private Path stateFile;
