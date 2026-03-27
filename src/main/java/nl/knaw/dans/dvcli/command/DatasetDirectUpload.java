@@ -42,6 +42,7 @@ import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -162,6 +163,7 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
                 System.err.print("Requesting upload URLs for file size: " + state.getFileSize() + "...");
                 DirectUploadURLs uploadUrls = getDatasetApi().getUploadUrls(state.getFileSize()).getData();
                 state.setUploadUrls(uploadUrls);
+                writeState(stateFile, state);
                 System.err.println("OK");
             }
 
@@ -213,6 +215,12 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
         }
     }
 
+    private void writeState(Path stateFile, DirectUploadState state) throws IOException {
+        var tempFile = stateFile.resolveSibling(stateFile.getFileName().toString() + ".temp");
+        objectMapper.writerWithDefaultPrettyPrinter().writeValue(tempFile.toFile(), state);
+        Files.move(tempFile, stateFile, StandardCopyOption.REPLACE_EXISTING);
+    }
+
     private void uploadSinglePart(CloseableHttpClient httpClient, String url, Path file) throws IOException {
         log.info("Performing single-part upload to S3");
         HttpPut putRequest = new HttpPut(url);
@@ -230,7 +238,7 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
     private void uploadMultiPart(CloseableHttpClient httpClient, DirectUploadState state) throws IOException {
         log.info("Performing multi-part upload to S3");
         DirectUploadURLs uploadUrls = state.getUploadUrls();
-        Map<String, String> etags = state.getEtags();
+        Map<String, String> etags = state.getEtags() == null ? new HashMap<>() : state.getEtags();
         long partSize = uploadUrls.getPartSize();
         Map<String, String> partUrls = uploadUrls.getUrls();
         Path file = Path.of(state.getFile());
@@ -270,7 +278,7 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
                     return response.getFirstHeader("ETag").getValue();
                 });
                 etags.put(partNumber, etag);
-                objectMapper.writerWithDefaultPrettyPrinter().writeValue(stateFile.toFile(), state);
+                writeState(stateFile, state);
             }
             System.err.println("OK");
         }
