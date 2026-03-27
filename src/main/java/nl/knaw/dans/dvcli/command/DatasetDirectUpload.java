@@ -111,7 +111,7 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
 
         DirectUploadState state;
         if (resume) {
-            System.err.print("Resuming upload from " + stateFile + "...");
+            System.err.println("Resuming upload from " + stateFile + "...");
             state = objectMapper.readValue(stateFile.toFile(), DirectUploadState.class);
             var resumeFile = Path.of(state.getFile());
             var cliFileNormalized = file.toAbsolutePath().normalize();
@@ -132,7 +132,7 @@ public class DatasetDirectUpload extends AbstractDatasetCmd implements Callable<
             System.err.println("OK");
             if (!skipChecksumOnResume) {
                 String sha1Checksum;
-                System.err.print("Checksumming file " + file + "...");
+                System.err.print("Re-checksumming file " + file + "...");
                 try (InputStream is = Files.newInputStream(file)) {
                     sha1Checksum = DigestUtils.sha1Hex(is);
                 }
