@@ -51,9 +51,6 @@ public class DataversesCollectStorageUsage implements Callable<Integer> {
     @Option(names = { "-m", "--max-depth" }, defaultValue = "1", description = "The max depth of the hierarchy to traverse")
     private int maxDepth;
 
-    @Option(names = { "-g", "--include-grand-total" }, description = "Whether to include the grand total, which almost doubles server processing time")
-    private boolean includeGrandTotal;
-
     @Option(names = { "-o", "--output-file" }, defaultValue = "-", description = "The file to write the output to or - for stdout")
     private String outputFile;
 
@@ -80,11 +77,6 @@ public class DataversesCollectStorageUsage implements Callable<Integer> {
         log.info("Extracted the tree for the toplevel dataverse: {} ({})", name, alias);
 
         try (ResultWriter writer = createResultWriter()) {
-            if (includeGrandTotal) {
-                log.info("Retrieving the total size for this dataverse instance...");
-                writer.writeRow(getStorageUsageRow("-", alias, name, 0));
-            }
-
             collectChildrenSizes(treeData, maxDepth, 1, writer);
         }
 
