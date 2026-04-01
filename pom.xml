@@ -36,7 +36,7 @@
     <properties>
         <main-class>nl.knaw.dans.dvcli.DdDvCli</main-class>
         <command-name>dv</command-name>
-        <dans-dataverse-client-lib.version>1.10.0</dans-dataverse-client-lib.version>
+        <dans-dataverse-client-lib.version>1.10.1-SNAPSHOT</dans-dataverse-client-lib.version>
         <dans-java-utils.version>2.10.0</dans-java-utils.version>
     </properties>
 
@@ -85,6 +85,7 @@
         <dependency>
             <groupId>nl.knaw.dans</groupId>
             <artifactId>dans-dataverse-client-lib</artifactId>
+            <version>1.10.1-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.postgresql</groupId>

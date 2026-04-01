@@ -31,6 +31,7 @@ import nl.knaw.dans.dvcli.command.DatasetLockList;
 import nl.knaw.dans.dvcli.command.DatasetSetStorageDriver;
 import nl.knaw.dans.dvcli.command.DatasetsGetPublished;
 import nl.knaw.dans.dvcli.command.DatasetsGetStorageSize;
+import nl.knaw.dans.dvcli.command.DataversesCollectStorageUsage;
 import nl.knaw.dans.dvcli.command.DepositsCreateReport;
 import nl.knaw.dans.dvcli.command.NotificationsTruncate;
 import nl.knaw.dans.dvcli.command.StorageDriversList;
@@ -75,6 +76,7 @@ public class DdDvCli extends nl.knaw.dans.lib.util.AbstractCommandLineApp<DdDvCl
         commandLine.addSubcommand(new NotificationsTruncate(dataverseClient.database()));
         commandLine.addSubcommand(new DatasetsGetPublished(dataverseClient.database()));
         commandLine.addSubcommand(new DatasetsGetStorageSize(dataverseClient.database()));
+        commandLine.addSubcommand(new DataversesCollectStorageUsage(dataverseClient));
         commandLine.addSubcommand(new DatasetArchiveVersion(dataverseClient, dataverseClient.database(), config.getArchivalCopy()));
         commandLine.addSubcommand(new UsersImport(dataverseClient));
         commandLine.addSubcommand(new DepositsCreateReport());
