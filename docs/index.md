@@ -6,40 +6,51 @@ Dataverse command-line interface
 SYNOPSIS
 --------
 
-    dv [-hV] [COMMAND]
-    dv banner-list
-    dv dataset-publish
+```bash
+# Banner management
+dv banner-list
+dv banner-add -m <message> [ -l <lang> ] [ --dismissible ]
+dv banner-delete <id>
 
-    dv --help # Show full list of commands
+# Lock management
+dv dataset-lock-add <pid> <lock_type>
+dv dataset-lock-delete <pid> <lock_type>
+dv dataset-lock-list <pid>
 
+# Storage drivers and direct upload
+dv dataset-delete-storage-driver <pid> <storageDriverLabel>
+dv dataset-get-storage-driver <pid>
+dv dataset-set-storage-driver <pid> <storageDriverLabel>
+dv dataset-direct-upload [ --label <label> ] [ -d <directoryLabel> ] \
+   [ --description <description> ] [ --resume ] [ --skip-checksum-on-resume ] \
+   [ --keep-upload-state ] <pid> <file>
+dv storage-drivers-list
 
-DESCRIPTION
------------
+# Reports
+dv datasets-get-published [ --after <after> ] [ --archived ] [ --unarchived ] \
+   [ --updatecurrent ] [ -o <outputFile> [ -b <batchSize> ] ]
+dv datasets-get-storage-size [ -b <base> ] [ --min-size <minSize> ] \ 
+   [ --min-files <minFiles> ] [ --max-size <maxSize> ] [ --max-files <maxFiles> ] \
+   [ -o <outputFile> ]
+dv dataverses-collect-storage-usage [ -m <maxDepth> ] [ -o <outputFile> ] \
+   [ -f { csv | json } ]
+dv deposits-create-report -b <serviceBaseUrl> [ -o <outputFile> ] [ -e <endDate> ] \
+   [ -s <startDate> ] [ -a <age> ] [ -t <state>[,<state>...] ] \
+   [ -u <user>[,<user>...] ] [ -f <format> ] [ -v <server> ] \
+   [ -r <from> ] [ --email-to <emailTo> ] [ --cc-email-to <ccEmailTo> ] \ 
+   [ --bcc-email-to <bccEmailTo> ]
 
-Dataverse command-line interface.
+# Misc management
+dv notifications-truncate [ --user <userId> ] --keep <keep>
+dv dataset-archive-version [ --skip-pids-from <skipPidsFrom> ] [ --force ] \
+   [ --allow-rearchive-older-versions ] --report <reportBasename> \
+   [ -w <waitBetweenItems> ] { -p <pid> -v <version> | -i <inputFile> }
+dv users-import -i <inputCsv> -k <builtinUsersKey> [ --dry-run ]
 
+```
 
-EXAMPLES
---------
+For more information on a subcommand use:
 
-<!-- Add examples of invoking this module from the command line or via HTTP other interfaces -->
-    
-
-INSTALLATION AND CONFIGURATION
-------------------------------
-Currently, this project is built as an RPM package for RHEL8/Rocky8 and later. The RPM will install the binaries to
-`/opt/dans.knaw.nl/dd-dv-cli` and the configuration files to `/etc/opt/dans.knaw.nl/dd-dv-cli`. 
-
-BUILDING FROM SOURCE
---------------------
-Prerequisites:
-
-* Java 17 or higher
-* Maven 3.3.3 or higher
-* RPM
-
-Steps:
-    
-    git clone https://github.com/DANS-KNAW/dd-dv-cli.git
-    cd dd-dv-cli 
-    mvn clean install
+```bash
+dv <subcommand> --help
+```
