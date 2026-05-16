@@ -34,11 +34,6 @@ dv datasets-get-storage-size [ -b <base> ] [ --min-size <minSize> ] \
    [ -o <outputFile> ]
 dv dataverses-collect-storage-usage [ -m <maxDepth> ] [ -o <outputFile> ] \
    [ -f { csv | json } ]
-dv deposits-create-report -b <serviceBaseUrl> [ -o <outputFile> ] [ -e <endDate> ] \
-   [ -s <startDate> ] [ -a <age> ] [ -t <state>[,<state>...] ] \
-   [ -u <user>[,<user>...] ] [ -f <format> ] [ -v <server> ] \
-   [ -r <from> ] [ --email-to <emailTo> ] [ --cc-email-to <ccEmailTo> ] \ 
-   [ --bcc-email-to <bccEmailTo> ]
 
 # Misc management
 dv notifications-truncate [ --user <userId> ] --keep <keep>
