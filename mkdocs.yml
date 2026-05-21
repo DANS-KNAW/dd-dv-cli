@@ -22,7 +22,17 @@ repo_name: DANS-KNAW/dd-dv-cli
 repo_url: https://github.com/DANS-KNAW/dd-dv-cli
 
 nav:
-  - Manual: index.md
+  - Manual:
+      - Introduction: index.md
+      - Description: description.md
+      - Installation: installation.md
+      - Context: context.md
+  - Development:
+      - Overview: dev.md
+
+extra:
+  dataverse_api_url: https://guides.dataverse.org/en/latest/api/index.html
+  dans_dataverse_client_lib_url: https://dans-knaw.github.io/dans-dataverse-client-lib/
 
 plugins:
   - markdownextradata

@@ -33,7 +33,6 @@ import nl.knaw.dans.dvcli.command.DatasetsGetPublished;
 import nl.knaw.dans.dvcli.command.DatasetsGetStorageSize;
 import nl.knaw.dans.dvcli.command.DatafilesGetPublished;
 import nl.knaw.dans.dvcli.command.DataversesCollectStorageUsage;
-import nl.knaw.dans.dvcli.command.DepositsCreateReport;
 import nl.knaw.dans.dvcli.command.NotificationsTruncate;
 import nl.knaw.dans.dvcli.command.StorageDriversList;
 import nl.knaw.dans.dvcli.command.UsersImport;
@@ -81,7 +80,6 @@ public class DdDvCli extends nl.knaw.dans.lib.util.AbstractCommandLineApp<DdDvCl
         commandLine.addSubcommand(new DataversesCollectStorageUsage(dataverseClient));
         commandLine.addSubcommand(new DatasetArchiveVersion(dataverseClient, dataverseClient.database(), config.getArchivalCopy()));
         commandLine.addSubcommand(new UsersImport(dataverseClient));
-        commandLine.addSubcommand(new DepositsCreateReport());
 
         // Must be called last to ensure it is available to subcommands (see JavaDoc of registerConverter)
         commandLine.registerConverter(DataSize.class, DataSize::parse);
