@@ -26,6 +26,7 @@ import picocli.CommandLine.Option;
 import java.io.File;
 import java.io.PrintWriter;
 import java.sql.ResultSet;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -42,8 +43,11 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
     @Data
     public static class DatafileInfo {
         private final Long fileId;
+        private final String datasetPid;
         private final String checksumType;
         private final String checksumValue;
+        private final Timestamp publicationTimestamp;
+        private final Long filesize;
     }
 
     private final DatabaseApi dbApi;
@@ -51,14 +55,20 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
     @Option(names = { "--output", "-o" }, description = "Output file", required = true)
     private File outputFile;
 
-    @Option(names = { "--fileid"}, description = "Name for the FILEID column", defaultValue = "FILEID")
-    private String fileId;
+    @Option(names = { "--checksum-type" }, description = "Include checksum type in output")
+    private boolean checksumType;
 
-    @Option(names = { "--checksum-type" }, description = "Include checksum type in output using this column name")
-    private String checksumType;
+    @Option(names = { "--checksum-value" }, description = "Include checksum value in output")
+    private boolean checksumValue;
 
-    @Option(names = { "--checksum-value" }, description = "Include checksum value in output using this column name")
-    private String checksumValue;
+    @Option(names = { "--dataset-pid" }, description = "Include dataset PID in output")
+    private boolean datasetPid;
+
+    @Option(names = { "--publication-timestamp" }, description = "Include publication timestamp in output")
+    private boolean publicationTimestamp;
+
+    @Option(names = { "--filesize" }, description = "Include filesize in output")
+    private boolean filesize;
 
     @Override
     protected Integer doCall() throws Exception {
@@ -77,13 +87,17 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
 
     private List<DatafileInfo> fetchResults() throws Exception {
         String query = """
-            SELECT dvo.id as FILEID,
-                   df.checksumtype as CHECKSUM_TYPE,
-                   df.checksumvalue as CHECKSUM_VALUE
+            SELECT dvo.id                                                      AS FILEID,
+                   ds_dvo.protocol || ':' || ds_dvo.authority || '/' || ds_dvo.identifier AS DATASET_PID,
+                   df.checksumtype                                             AS CHECKSUM_TYPE,
+                   df.checksumvalue                                            AS CHECKSUM_VALUE,
+                   dvo.publicationdate                                         AS PUBLICATION_TIMESTAMP,
+                   df.filesize                                                 AS FILESIZE
             FROM dvobject dvo
-            JOIN datafile df ON dvo.id = df.id
+                     JOIN datafile df ON dvo.id = df.id
+                     JOIN dvobject ds_dvo ON dvo.owner_id = ds_dvo.id
             WHERE dvo.dtype = 'DataFile'
-            AND dvo.publicationdate IS NOT NULL
+              AND dvo.publicationdate IS NOT NULL
             ORDER BY FILEID ASC;
             """;
 
@@ -91,8 +105,11 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
             try {
                 return new DatafileInfo(
                     rs.getLong("FILEID"),
+                    rs.getString("DATASET_PID"),
                     rs.getString("CHECKSUM_TYPE"),
-                    rs.getString("CHECKSUM_VALUE")
+                    rs.getString("CHECKSUM_VALUE"),
+                    rs.getTimestamp("PUBLICATION_TIMESTAMP"),
+                    rs.getLong("FILESIZE")
                 );
             }
             catch (Exception e) {
@@ -106,12 +123,21 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
 
     private void writeCsvFile(List<DatafileInfo> results, PrintWriter out) throws Exception {
         List<String> headers = new ArrayList<>();
-        headers.add(fileId);
-        if (checksumType != null) {
-            headers.add(checksumType);
+        if (datasetPid) {
+            headers.add("DATASET_PID");
         }
-        if (checksumValue != null) {
-            headers.add(checksumValue);
+        headers.add("FILEID");
+        if (checksumType) {
+            headers.add("CHECKSUM_TYPE");
+        }
+        if (checksumValue) {
+            headers.add("CHECKSUM_VALUE");
+        }
+        if (publicationTimestamp) {
+            headers.add("PUBLICATION_TIMESTAMP");
+        }
+        if (filesize) {
+            headers.add("FILESIZE");
         }
 
         try (var printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder()
@@ -119,12 +145,21 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
             .get())) {
             for (DatafileInfo info : results) {
                 List<Object> record = new ArrayList<>();
+                if (datasetPid) {
+                    record.add(info.getDatasetPid());
+                }
                 record.add(info.getFileId());
-                if (checksumType != null) {
+                if (checksumType) {
                     record.add(info.getChecksumType());
                 }
-                if (checksumValue != null) {
+                if (checksumValue) {
                     record.add(info.getChecksumValue());
+                }
+                if (publicationTimestamp) {
+                    record.add(info.getPublicationTimestamp());
+                }
+                if (filesize) {
+                    record.add(info.getFilesize());
                 }
                 printer.printRecord(record);
             }
