@@ -86,16 +86,21 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
     }
 
     private List<DatafileInfo> fetchResults() throws Exception {
+        /*
+         * Note that Dataverse stores the checksum of the *original* file in the datafile table but the length of the *.tab* file (if available).
+         * To also get the length of the *original* file, we have to look in the datatable table.
+         */
         String query = """
             SELECT dvo.id                                                      AS FILEID,
                    ds_dvo.protocol || ':' || ds_dvo.authority || '/' || ds_dvo.identifier AS DATASET_PID,
                    df.checksumtype                                             AS CHECKSUM_TYPE,
                    df.checksumvalue                                            AS CHECKSUM_VALUE,
                    dvo.publicationdate                                         AS PUBLICATION_TIMESTAMP,
-                   df.filesize                                                 AS FILESIZE
+                   COALESCE(dt.originalfilesize, df.filesize)                  AS FILESIZE
             FROM dvobject dvo
                      JOIN datafile df ON dvo.id = df.id
                      JOIN dvobject ds_dvo ON dvo.owner_id = ds_dvo.id
+                     LEFT JOIN datatable dt ON df.id = dt.datafile_id
             WHERE dvo.dtype = 'DataFile'
               AND dvo.publicationdate IS NOT NULL
             ORDER BY FILEID ASC;
