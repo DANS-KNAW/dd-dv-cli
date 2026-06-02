@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="img/favicon.ico" />
+    <title>Introduction - dd-dv-cli</title>
+    <link rel="stylesheet" href="css/theme.css" />
+    <link rel="stylesheet" href="css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Introduction";
+        var mkdocs_page_input_path = "index.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href="." class="icon icon-home"> dd-dv-cli
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="./search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption"><span class="caption-text">Manual</span></p>
+              <ul class="current">
+                  <li class="toctree-l1 current"><a class="reference internal current" href=".">Introduction</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#synopsis">SYNOPSIS</a>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="description/">Description</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="installation/">Installation</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="context/">Context</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Development</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="dev/">Overview</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href=".">dd-dv-cli</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href="." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+          <li>Manual &raquo;</li><li>Introduction</li>
+    <li class="wy-breadcrumbs-aside">
+        <a href="https://github.com/DANS-KNAW/dd-dv-cli/edit/master/docs/index.md"> Edit on DANS-KNAW/dd-dv-cli</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="dd-dv-cli">dd-dv-cli<a class="headerlink" href="#dd-dv-cli" title="Permanent link">&para;</a></h1>
+<p>Dataverse command-line interface</p>
+<h2 id="synopsis">SYNOPSIS<a class="headerlink" href="#synopsis" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash"># Banner management
+dv banner-list
+dv banner-add -m &lt;message&gt; [ -l &lt;lang&gt; ] [ --dismissible ]
+dv banner-delete &lt;id&gt;
+
+# Lock management
+dv dataset-lock-add &lt;pid&gt; &lt;lock_type&gt;
+dv dataset-lock-delete &lt;pid&gt; &lt;lock_type&gt;
+dv dataset-lock-list &lt;pid&gt;
+
+# Storage drivers and direct upload
+dv dataset-delete-storage-driver &lt;pid&gt; &lt;storageDriverLabel&gt;
+dv dataset-get-storage-driver &lt;pid&gt;
+dv dataset-set-storage-driver &lt;pid&gt; &lt;storageDriverLabel&gt;
+dv dataset-direct-upload [ --label &lt;label&gt; ] [ -d &lt;directoryLabel&gt; ] \
+   [ --description &lt;description&gt; ] [ --resume ] [ --skip-checksum-on-resume ] \
+   [ --keep-upload-state ] &lt;pid&gt; &lt;file&gt;
+dv storage-drivers-list
+
+# Reports
+dv datasets-get-published [ --after &lt;after&gt; ] [ --archived ] [ --unarchived ] \
+   [ --updatecurrent ] [ -o &lt;outputFile&gt; [ -b &lt;batchSize&gt; ] ]
+dv datasets-get-storage-size [ -b &lt;base&gt; ] [ --min-size &lt;minSize&gt; ] \ 
+   [ --min-files &lt;minFiles&gt; ] [ --max-size &lt;maxSize&gt; ] [ --max-files &lt;maxFiles&gt; ] \
+   [ -o &lt;outputFile&gt; ]
+dv dataverses-collect-storage-usage [ -m &lt;maxDepth&gt; ] [ -o &lt;outputFile&gt; ] \
+   [ -f { csv | json } ]
+
+# Misc management
+dv notifications-truncate [ --user &lt;userId&gt; ] --keep &lt;keep&gt;
+dv dataset-archive-version [ --skip-pids-from &lt;skipPidsFrom&gt; ] [ --force ] \
+   [ --allow-rearchive-older-versions ] --report &lt;reportBasename&gt; \
+   [ -w &lt;waitBetweenItems&gt; ] { -p &lt;pid&gt; -v &lt;version&gt; | -i &lt;inputFile&gt; }
+dv users-import -i &lt;inputCsv&gt; -k &lt;builtinUsersKey&gt; [ --dry-run ]
+
+</code></pre>
+<p>For more information on a subcommand use:</p>
+<pre><code class="language-bash">dv &lt;subcommand&gt; --help
+</code></pre>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href="description/" class="btn btn-neutral float-right" title="Description">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+    
+      <span><a href="description/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script>var base_url = '.';</script>
+    <script src="js/theme_extra.js" defer></script>
+    <script src="js/theme.js" defer></script>
+      <script src="search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>
