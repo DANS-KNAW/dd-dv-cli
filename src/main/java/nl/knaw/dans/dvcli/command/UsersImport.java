@@ -18,6 +18,7 @@ package nl.knaw.dans.dvcli.command;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import nl.knaw.dans.lib.dataverse.DataverseClient;
+import nl.knaw.dans.lib.dataverse.DataverseException;
 import nl.knaw.dans.lib.dataverse.model.user.BuiltinUser;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -62,14 +63,18 @@ public class UsersImport extends AbstractDatabaseCmd {
                 log.warn("Dry-run: would create user {}", user.getUserName());
                 continue;
             }
-            var response = dataverseClient.builtinUsers(builtinUsersKey)
-                .create(user, password);
-            if (response != null && "OK".equalsIgnoreCase(response.getEnvelope().getStatus())) {
+            try {
+                var response = dataverseClient.builtinUsers(builtinUsersKey)
+                    .create(user, password);
+                if (response.getHttpResponse().getCode() != 200) {
+                    log.warn("User import return status code: {}", response.getHttpResponse().getCode());
+                    continue;
+                }
                 log.info("Imported user {}", user.getUserName());
                 count++;
             }
-            else {
-                log.error("Error creating user {}: {}", user.getUserName(), response != null ? response.getEnvelope().getMessage() : "null");
+            catch (DataverseException e) {
+                log.error("Error creating user {}: {}", user.getUserName(), e.getMessage());
                 errors++;
             }
         }
