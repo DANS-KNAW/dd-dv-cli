@@ -71,8 +71,8 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
     @Option(names = { "--filesize" }, description = "Include filesize in output")
     private boolean filesize;
 
-    @Option(names = { "--published" }, description = "Only include datafiles published after this timestamp (ISO-8601, e.g. 2025-01-01T00:00:00+01:00)", defaultValue = "1970-01-01T00:00:00Z")
-    private OffsetDateTime publishedAfter;
+    @Option(names = { "--after" }, description = "Only include datafiles published after this timestamp (ISO-8601, e.g. 2025-01-01T00:00:00+01:00)", defaultValue = "1970-01-01T00:00:00Z")
+    private OffsetDateTime after;
 
     @Override
     protected Integer doCall() throws Exception {
@@ -94,7 +94,7 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
          * Note that Dataverse stores the checksum of the *original* file in the datafile table but the length of the *.tab* file (if available).
          * To also get the length of the *original* file, we have to look in the datatable table.
          */
-        var publishedAfterClause = publishedAfter != null ? "AND dvo.publicationdate > ?\n" : "";
+        var publishedAfterClause = after != null ? "AND dvo.publicationdate > ?\n" : "";
         var query = """
             SELECT dvo.id                                                      AS FILEID,
                    ds_dvo.protocol || ':' || ds_dvo.authority || '/' || ds_dvo.identifier AS DATASET_PID,
@@ -112,8 +112,8 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
             ORDER BY FILEID ASC;
             """;
 
-        var params = publishedAfter != null
-            ? new Object[] { Timestamp.from(publishedAfter.toInstant()) }
+        var params = after != null
+            ? new Object[] { Timestamp.from(after.toInstant()) }
             : new Object[0];
 
         try (var context = dbApi.query(query, (ResultSet rs) -> {
