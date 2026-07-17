@@ -60,8 +60,8 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
     @ArgGroup(exclusive = false, heading = "CSV options:%n")
     private CsvOptions csvOptions;
 
-    @Option(names = { "--after" }, description = "Filter on dataset versions published after this timestamp (ISO 8601 format)")
-    private OffsetDateTime after = OffsetDateTime.parse("1970-01-01T00:00:00Z");
+    @Option(names = { "--after" }, description = "Filter on dataset versions published after this timestamp (ISO 8601 format)", defaultValue = "1970-01-01T00:00:00Z")
+    private OffsetDateTime after;
 
     @Option(names = { "--archived" }, description = "Filter on archived dataset versions")
     private boolean archived;
