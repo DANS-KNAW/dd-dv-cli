@@ -71,7 +71,7 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
     @Option(names = { "--filesize" }, description = "Include filesize in output")
     private boolean filesize;
 
-    @Option(names = { "--published-after" }, description = "Only include datafiles published after this timestamp (ISO-8601, e.g. 2025-01-01T00:00:00+01:00)")
+    @Option(names = { "--published" }, description = "Only include datafiles published after this timestamp (ISO-8601, e.g. 2025-01-01T00:00:00+01:00)", defaultValue = "1970-01-01T00:00:00Z")
     private OffsetDateTime publishedAfter;
 
     @Override
