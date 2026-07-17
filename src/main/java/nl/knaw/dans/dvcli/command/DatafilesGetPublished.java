@@ -27,6 +27,7 @@ import java.io.File;
 import java.io.PrintWriter;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -70,6 +71,9 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
     @Option(names = { "--filesize" }, description = "Include filesize in output")
     private boolean filesize;
 
+    @Option(names = { "--published-after" }, description = "Only include datafiles published after this timestamp (ISO-8601, e.g. 2025-01-01T00:00:00+01:00)")
+    private OffsetDateTime publishedAfter;
+
     @Override
     protected Integer doCall() throws Exception {
         List<DatafileInfo> results = fetchResults();
@@ -90,7 +94,8 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
          * Note that Dataverse stores the checksum of the *original* file in the datafile table but the length of the *.tab* file (if available).
          * To also get the length of the *original* file, we have to look in the datatable table.
          */
-        String query = """
+        var publishedAfterClause = publishedAfter != null ? "AND dvo.publicationdate > ?\n" : "";
+        var query = """
             SELECT dvo.id                                                      AS FILEID,
                    ds_dvo.protocol || ':' || ds_dvo.authority || '/' || ds_dvo.identifier AS DATASET_PID,
                    df.checksumtype                                             AS CHECKSUM_TYPE,
@@ -103,8 +108,13 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
                      LEFT JOIN datatable dt ON df.id = dt.datafile_id
             WHERE dvo.dtype = 'DataFile'
               AND dvo.publicationdate IS NOT NULL
+              """ + publishedAfterClause + """
             ORDER BY FILEID ASC;
             """;
+
+        var params = publishedAfter != null
+            ? new Object[] { Timestamp.from(publishedAfter.toInstant()) }
+            : new Object[0];
 
         try (var context = dbApi.query(query, (ResultSet rs) -> {
             try {
@@ -121,8 +131,7 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
                 throw new RuntimeException("Failed to map ResultSet row to DatafileInfo", e);
             }
         })) {
-            // Since there are no parameters in the query, we need to provide one empty parameter list to ensure that the query is executed once.
-            return context.executeFor(Collections.singletonList(new Object[0]));
+            return context.executeFor(Collections.singletonList(params));
         }
     }
 
