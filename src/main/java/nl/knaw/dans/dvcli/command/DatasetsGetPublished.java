@@ -22,7 +22,9 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import picocli.CommandLine.ArgGroup;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.Option;
+import picocli.CommandLine.Spec;
 
 import java.io.File;
 import java.io.PrintWriter;
@@ -57,6 +59,9 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
 
     private final DatabaseApi dbApi;
 
+    @Spec
+    CommandSpec spec;
+
     @ArgGroup(exclusive = false, heading = "CSV options:%n")
     private CsvOptions csvOptions;
 
@@ -68,6 +73,9 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
 
     @Option(names = { "--unarchived" }, description = "Filter on unarchived dataset versions")
     private boolean unarchived;
+
+    @Option(names = { "--failed-archived" }, description = "Filter on dataset versions where archival export failed")
+    private boolean failedArchived;
 
     @Option(names = { "--updatecurrent" }, description = "An updatecurrent action was performed on the dataset version")
     private boolean updateCurrent;
@@ -107,7 +115,7 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
             return new PrintWriter(outputFile);
         }
         else {
-            return new PrintWriter(System.out, true);
+            return spec.commandLine().getOut();
         }
     }
 
@@ -120,13 +128,10 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
                      JOIN dvobject dvo ON dsv.dataset_id = dvo.id
             WHERE dsv.lastupdatetime > ?
               AND dsv.versionstate IN ('RELEASED', 'DEACCESSIONED')
-              AND ((? = true -- archived
-                AND dsv.archivalcopylocation IS NOT NULL) -- archival location set
-                OR
-                   (? = true -- unarchived
-                       AND dsv.archivalcopylocation IS NULL) -- archival location not set
-                OR
-                   (? = false AND ? = false))
+              AND ((? = false AND ? = false AND ? = false) -- none set
+                OR (? = true AND dsv.archivalcopylocation IS NOT NULL AND dsv.archivalcopylocation::json ->> 'status' = 'success')
+                OR (? = true AND (dsv.archivalcopylocation IS NULL OR dsv.archivalcopylocation::json ->> 'status' = 'failure'))
+                OR (? = true AND dsv.archivalcopylocation IS NOT NULL AND dsv.archivalcopylocation::json ->> 'status' = 'failure'))
               AND (? = true -- updateCurrent
                        AND dsv.lastupdatetime > dsv.releasetime -- last update after release time
                 OR (? = false)) -- not filtering on updateCurrent
@@ -139,8 +144,10 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
             Timestamp.from(after.toInstant()),
             archived,
             unarchived,
+            failedArchived,
             archived,
             unarchived,
+            failedArchived,
             updateCurrent,
             updateCurrent
         };
