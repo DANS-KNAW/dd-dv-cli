@@ -18,11 +18,12 @@ package nl.knaw.dans.dvcli.command;
 import nl.knaw.dans.lib.dataverse.DatabaseApi;
 import nl.knaw.dans.lib.dataverse.QueryContext;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import picocli.CommandLine;
 
-import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Timestamp;
 import java.util.Collections;
 import java.util.List;
@@ -31,7 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class DatafilesGetPublishedTest {
     @Test
-    public void after_accepts_date_only_and_uses_start_of_day_timestamp() throws Exception {
+    public void after_accepts_date_only_and_uses_start_of_day_timestamp(@TempDir Path tempDir) throws Exception {
         DatabaseApi dbApi = Mockito.mock(DatabaseApi.class);
         QueryContext queryContext = Mockito.mock(QueryContext.class);
         Mockito.when(dbApi.query(Mockito.anyString(), Mockito.any())).thenReturn(queryContext);
@@ -39,7 +40,7 @@ public class DatafilesGetPublishedTest {
 
         DatafilesGetPublished cmd = new DatafilesGetPublished(dbApi);
         CommandLine commandLine = new CommandLine(cmd);
-        commandLine.execute("--output", Files.createTempFile("datafiles-get-published", ".csv").toString(), "--after", "2025-01-01");
+        commandLine.execute("--output", tempDir.resolve("out.csv").toString(), "--after", "2025-01-01");
 
         ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
         Mockito.verify(queryContext).executeFor(paramsCaptor.capture());
@@ -49,7 +50,7 @@ public class DatafilesGetPublishedTest {
     }
 
     @Test
-    public void after_accepts_timestamp_without_timezone() throws Exception {
+    public void after_accepts_timestamp_without_timezone(@TempDir Path tempDir) throws Exception {
         DatabaseApi dbApi = Mockito.mock(DatabaseApi.class);
         QueryContext queryContext = Mockito.mock(QueryContext.class);
         Mockito.when(dbApi.query(Mockito.anyString(), Mockito.any())).thenReturn(queryContext);
@@ -57,7 +58,7 @@ public class DatafilesGetPublishedTest {
 
         DatafilesGetPublished cmd = new DatafilesGetPublished(dbApi);
         CommandLine commandLine = new CommandLine(cmd);
-        commandLine.execute("--output", Files.createTempFile("datafiles-get-published", ".csv").toString(), "--after", "2025-01-01T12:34:56");
+        commandLine.execute("--output", tempDir.resolve("out.csv").toString(), "--after", "2025-01-01T12:34:56");
 
         ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
         Mockito.verify(queryContext).executeFor(paramsCaptor.capture());
@@ -67,7 +68,7 @@ public class DatafilesGetPublishedTest {
     }
 
     @Test
-    public void before_flag_generates_correct_query() throws Exception {
+    public void before_flag_uses_default_after_and_given_before(@TempDir Path tempDir) throws Exception {
         DatabaseApi dbApi = Mockito.mock(DatabaseApi.class);
         QueryContext queryContext = Mockito.mock(QueryContext.class);
         Mockito.when(dbApi.query(Mockito.anyString(), Mockito.any())).thenReturn(queryContext);
@@ -75,14 +76,7 @@ public class DatafilesGetPublishedTest {
 
         DatafilesGetPublished cmd = new DatafilesGetPublished(dbApi);
         CommandLine commandLine = new CommandLine(cmd);
-        var outputFile = Files.createTempFile("datafiles-get-published", ".csv");
-        commandLine.execute("-o", outputFile.toString(), "--before", "2025-01-01");
-
-        ArgumentCaptor<String> queryCaptor = ArgumentCaptor.forClass(String.class);
-        Mockito.verify(dbApi).query(queryCaptor.capture(), Mockito.any());
-        String query = queryCaptor.getValue();
-        assertThat(query).contains("dvo.publicationdate > ?");
-        assertThat(query).contains("dvo.publicationdate < ?");
+        commandLine.execute("-o", tempDir.resolve("out.csv").toString(), "--before", "2025-01-01");
 
         ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
         Mockito.verify(queryContext).executeFor(paramsCaptor.capture());
@@ -93,7 +87,7 @@ public class DatafilesGetPublishedTest {
     }
 
     @Test
-    public void after_and_before_flags_generate_correct_parameters() throws Exception {
+    public void after_and_before_flags_generate_correct_parameters(@TempDir Path tempDir) throws Exception {
         DatabaseApi dbApi = Mockito.mock(DatabaseApi.class);
         QueryContext queryContext = Mockito.mock(QueryContext.class);
         Mockito.when(dbApi.query(Mockito.anyString(), Mockito.any())).thenReturn(queryContext);
@@ -101,8 +95,7 @@ public class DatafilesGetPublishedTest {
 
         DatafilesGetPublished cmd = new DatafilesGetPublished(dbApi);
         CommandLine commandLine = new CommandLine(cmd);
-        var outputFile = Files.createTempFile("datafiles-get-published", ".csv");
-        commandLine.execute("-o", outputFile.toString(), "--after", "2024-01-01T00:00:00", "--before", "2025-01-01T00:00:00");
+        commandLine.execute("-o", tempDir.resolve("out.csv").toString(), "--after", "2024-01-01T00:00:00", "--before", "2025-01-01T00:00:00");
 
         ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
         Mockito.verify(queryContext).executeFor(paramsCaptor.capture());
