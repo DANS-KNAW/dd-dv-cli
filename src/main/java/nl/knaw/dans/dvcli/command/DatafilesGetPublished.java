@@ -74,6 +74,9 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
     @Option(names = { "--after" }, converter = LocalTimestampConverter.class, description = "Only include datafiles published after this local timestamp or date (ISO-8601, e.g. 2025-01-01T00:00:00 or 2025-01-01)", defaultValue = "1970-01-01T00:00:00")
     private LocalDateTime after;
 
+    @Option(names = { "--before" }, converter = LocalTimestampConverter.class, description = "Only include datafiles published before this local timestamp or date (ISO-8601, e.g. 2025-01-01T00:00:00 or 2025-01-01)", defaultValue = "9999-12-31T23:59:59")
+    private LocalDateTime before;
+
     @Override
     protected Integer doCall() throws Exception {
         List<DatafileInfo> results = fetchResults();
@@ -94,7 +97,6 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
          * Note that Dataverse stores the checksum of the *original* file in the datafile table but the length of the *.tab* file (if available).
          * To also get the length of the *original* file, we have to look in the datatable table.
          */
-        var publishedAfterClause = after != null ? "AND dvo.publicationdate > ?\n" : "";
         var query = """
             SELECT dvo.id                                                      AS FILEID,
                    ds_dvo.protocol || ':' || ds_dvo.authority || '/' || ds_dvo.identifier AS DATASET_PID,
@@ -108,13 +110,15 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
                      LEFT JOIN datatable dt ON df.id = dt.datafile_id
             WHERE dvo.dtype = 'DataFile'
               AND dvo.publicationdate IS NOT NULL
-              """ + publishedAfterClause + """
+              AND dvo.publicationdate > ?
+              AND dvo.publicationdate < ?
             ORDER BY FILEID ASC;
             """;
 
-        var params = after != null
-            ? new Object[] { Timestamp.valueOf(after) }
-            : new Object[0];
+        var params = new Object[] {
+            Timestamp.valueOf(after),
+            Timestamp.valueOf(before),
+        };
 
         try (var context = dbApi.query(query, (ResultSet rs) -> {
             try {
