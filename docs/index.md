@@ -29,6 +29,8 @@ dv storage-drivers-list
 # Reports
 dv datasets-get-published [ --after <after> ] [ --archived ] [ --unarchived ] \
    [ --updatecurrent ] [ -o <outputFile> [ -b <batchSize> ] ]
+dv filemetas-get-published -o <outputFile> [ --dataset-pid ] [ --label ] \
+   [ --directory-label ]
 dv datasets-get-storage-size [ -b <base> ] [ --min-size <minSize> ] \ 
    [ --min-files <minFiles> ] [ --max-size <maxSize> ] [ --max-files <maxFiles> ] \
    [ -o <outputFile> ]

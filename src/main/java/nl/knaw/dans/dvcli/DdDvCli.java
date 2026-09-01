@@ -33,6 +33,7 @@ import nl.knaw.dans.dvcli.command.DatasetsGetPublished;
 import nl.knaw.dans.dvcli.command.DatasetsGetStorageSize;
 import nl.knaw.dans.dvcli.command.DatafilesGetPublished;
 import nl.knaw.dans.dvcli.command.DataversesCollectStorageUsage;
+import nl.knaw.dans.dvcli.command.FilemetasGetPublished;
 import nl.knaw.dans.dvcli.command.NotificationsTruncate;
 import nl.knaw.dans.dvcli.command.StorageDriversList;
 import nl.knaw.dans.dvcli.command.UsersImport;
@@ -76,6 +77,7 @@ public class DdDvCli extends nl.knaw.dans.lib.util.AbstractCommandLineApp<DdDvCl
         commandLine.addSubcommand(new NotificationsTruncate(dataverseClient.database()));
         commandLine.addSubcommand(new DatasetsGetPublished(dataverseClient.database()));
         commandLine.addSubcommand(new DatafilesGetPublished(dataverseClient.database()));
+        commandLine.addSubcommand(new FilemetasGetPublished(dataverseClient.database()));
         commandLine.addSubcommand(new DatasetsGetStorageSize(dataverseClient.database()));
         commandLine.addSubcommand(new DataversesCollectStorageUsage(dataverseClient));
         commandLine.addSubcommand(new DatasetArchiveVersion(dataverseClient, dataverseClient.database(), config.getArchivalCopy()));
