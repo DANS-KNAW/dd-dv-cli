@@ -33,7 +33,7 @@ public class LocalTimestampConverter implements ITypeConverter<LocalDateTime> {
                 return LocalDate.parse(value).atStartOfDay();
             }
             catch (DateTimeParseException ignored) {
-                throw new TypeConversionException("Expected an ISO local timestamp without timezone or a date");
+                throw new TypeConversionException("'" + value + "': expected an ISO local timestamp without timezone or a date (e.g. 2025-01-01T00:00:00 or 2025-01-01)");
             }
         }
     }
