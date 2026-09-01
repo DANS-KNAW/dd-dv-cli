@@ -27,7 +27,7 @@ import java.io.File;
 import java.io.PrintWriter;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -71,11 +71,11 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
     @Option(names = { "--filesize" }, description = "Include filesize in output")
     private boolean filesize;
 
-    @Option(names = { "--after" }, description = "Only include datafiles published after this timestamp (ISO-8601, e.g. 2025-01-01T00:00:00+01:00)", defaultValue = "1970-01-01T00:00:00Z")
-    private OffsetDateTime after;
+    @Option(names = { "--after" }, converter = LocalTimestampConverter.class, description = "Only include datafiles published after this local timestamp or date (ISO-8601, e.g. 2025-01-01T00:00:00 or 2025-01-01)", defaultValue = "1970-01-01T00:00:00")
+    private LocalDateTime after;
 
-    @Option(names = { "--before" }, description = "Only include datafiles published before this timestamp (ISO-8601, e.g. 2025-01-01T00:00:00+01:00)", defaultValue = "9999-12-31T23:59:59Z")
-    private OffsetDateTime before;
+    @Option(names = { "--before" }, converter = LocalTimestampConverter.class, description = "Only include datafiles published before this local timestamp or date (ISO-8601, e.g. 2025-01-01T00:00:00 or 2025-01-01)", defaultValue = "9999-12-31T23:59:59")
+    private LocalDateTime before;
 
     @Override
     protected Integer doCall() throws Exception {
@@ -116,8 +116,8 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
             """;
 
         var params = new Object[] {
-            Timestamp.from(after.toInstant()),
-            Timestamp.from(before.toInstant()),
+            Timestamp.valueOf(after),
+            Timestamp.valueOf(before),
         };
 
         try (var context = dbApi.query(query, (ResultSet rs) -> {
