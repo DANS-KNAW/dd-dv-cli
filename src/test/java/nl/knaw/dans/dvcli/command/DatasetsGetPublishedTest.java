@@ -24,6 +24,7 @@ import picocli.CommandLine;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.sql.Timestamp;
 import java.util.Collections;
 import java.util.List;
 
@@ -142,5 +143,45 @@ public class DatasetsGetPublishedTest {
         assertThat(params[1]).isEqualTo(false);
         assertThat(params[2]).isEqualTo(false);
         assertThat(params[3]).isEqualTo(false);
+    }
+
+    @Test
+    public void after_accepts_date_only_and_uses_start_of_day_timestamp() throws Exception {
+        DatabaseApi dbApi = Mockito.mock(DatabaseApi.class);
+        QueryContext queryContext = Mockito.mock(QueryContext.class);
+        Mockito.when(dbApi.query(Mockito.anyString(), Mockito.any())).thenReturn(queryContext);
+        Mockito.when(queryContext.executeFor(Mockito.any())).thenReturn(Collections.emptyList());
+
+        DatasetsGetPublished cmd = new DatasetsGetPublished(dbApi);
+        CommandLine commandLine = new CommandLine(cmd);
+        StringWriter sw = new StringWriter();
+        commandLine.setOut(new PrintWriter(sw));
+        commandLine.execute("--after", "2025-01-01");
+
+        ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
+        Mockito.verify(queryContext).executeFor(paramsCaptor.capture());
+        Object[] params = paramsCaptor.getValue().get(0);
+
+        assertThat(params[0]).isEqualTo(Timestamp.valueOf("2025-01-01 00:00:00"));
+    }
+
+    @Test
+    public void after_accepts_timestamp_without_timezone() throws Exception {
+        DatabaseApi dbApi = Mockito.mock(DatabaseApi.class);
+        QueryContext queryContext = Mockito.mock(QueryContext.class);
+        Mockito.when(dbApi.query(Mockito.anyString(), Mockito.any())).thenReturn(queryContext);
+        Mockito.when(queryContext.executeFor(Mockito.any())).thenReturn(Collections.emptyList());
+
+        DatasetsGetPublished cmd = new DatasetsGetPublished(dbApi);
+        CommandLine commandLine = new CommandLine(cmd);
+        StringWriter sw = new StringWriter();
+        commandLine.setOut(new PrintWriter(sw));
+        commandLine.execute("--after", "2025-01-01T12:34:56");
+
+        ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
+        Mockito.verify(queryContext).executeFor(paramsCaptor.capture());
+        Object[] params = paramsCaptor.getValue().get(0);
+
+        assertThat(params[0]).isEqualTo(Timestamp.valueOf("2025-01-01 12:34:56"));
     }
 }

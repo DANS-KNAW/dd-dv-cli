@@ -30,7 +30,7 @@ import java.io.File;
 import java.io.PrintWriter;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -65,8 +65,8 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
     @ArgGroup(exclusive = false, heading = "CSV options:%n")
     private CsvOptions csvOptions;
 
-    @Option(names = { "--after" }, description = "Filter on dataset versions published after this timestamp (ISO 8601 format)", defaultValue = "1970-01-01T00:00:00Z")
-    private OffsetDateTime after;
+    @Option(names = { "--after" }, converter = LocalTimestampConverter.class, description = "Filter on dataset versions published after this local timestamp or date (ISO-8601, e.g. 2025-01-01T00:00:00 or 2025-01-01)", defaultValue = "1970-01-01T00:00:00")
+    private LocalDateTime after;
 
     @Option(names = { "--archived" }, description = "Filter on archived dataset versions")
     private boolean archived;
@@ -141,7 +141,7 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
             """;
 
         Object[] parameters = new Object[] {
-            Timestamp.from(after.toInstant()),
+            Timestamp.valueOf(after),
             archived,
             unarchived,
             failedArchived,
