@@ -68,7 +68,7 @@ public class DatafilesGetPublishedTest {
     }
 
     @Test
-    public void before_flag_uses_default_after_and_given_before(@TempDir Path tempDir) throws Exception {
+    public void before_accepts_timestamp_without_timezone_and_uses_default_after(@TempDir Path tempDir) throws Exception {
         DatabaseApi dbApi = Mockito.mock(DatabaseApi.class);
         QueryContext queryContext = Mockito.mock(QueryContext.class);
         Mockito.when(dbApi.query(Mockito.anyString(), Mockito.any())).thenReturn(queryContext);
@@ -76,14 +76,14 @@ public class DatafilesGetPublishedTest {
 
         DatafilesGetPublished cmd = new DatafilesGetPublished(dbApi);
         CommandLine commandLine = new CommandLine(cmd);
-        commandLine.execute("-o", tempDir.resolve("out.csv").toString(), "--before", "2025-01-01");
+        commandLine.execute("-o", tempDir.resolve("out.csv").toString(), "--before", "2025-01-01T12:34:56");
 
         ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
         Mockito.verify(queryContext).executeFor(paramsCaptor.capture());
         Object[] params = paramsCaptor.getValue().get(0);
 
         assertThat(params[0]).isEqualTo(Timestamp.valueOf("1970-01-01 00:00:00"));
-        assertThat(params[1]).isEqualTo(Timestamp.valueOf("2025-01-01 00:00:00"));
+        assertThat(params[1]).isEqualTo(Timestamp.valueOf("2025-01-01 12:34:56"));
     }
 
     @Test
