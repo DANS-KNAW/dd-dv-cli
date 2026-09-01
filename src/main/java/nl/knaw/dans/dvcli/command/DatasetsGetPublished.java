@@ -65,8 +65,17 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
     @ArgGroup(exclusive = false, heading = "CSV options:%n")
     private CsvOptions csvOptions;
 
-    @Option(names = { "--after" }, description = "Filter on dataset versions published after this timestamp (ISO 8601 format)", defaultValue = "1970-01-01T00:00:00Z")
+    @Option(names = { "--after" },
+        description = "Filter on dataset versions published after this date/time. Accepts an ISO-8601 date-time (e.g. 2025-01-01T00:00:00+01:00) or a plain date (e.g. 2025-01-01), which is treated as 2025-01-01T00:00:00Z.",
+        defaultValue = "1970-01-01T00:00:00Z",
+        converter = OffsetDateTimeConverter.class)
     private OffsetDateTime after;
+
+    @Option(names = { "--before" },
+        description = "Filter on dataset versions published before this date/time. Accepts an ISO-8601 date-time (e.g. 2025-01-01T00:00:00+01:00) or a plain date (e.g. 2025-01-01), which is treated as 2025-01-01T00:00:00Z.",
+        defaultValue = "9999-12-31T23:59:59Z",
+        converter = OffsetDateTimeConverter.class)
+    private OffsetDateTime before;
 
     @Option(names = { "--archived" }, description = "Filter on archived dataset versions")
     private boolean archived;
@@ -127,6 +136,7 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
             FROM datasetversion dsv
                      JOIN dvobject dvo ON dsv.dataset_id = dvo.id
             WHERE dsv.lastupdatetime > ?
+              AND dsv.lastupdatetime < ?
               AND dsv.versionstate IN ('RELEASED', 'DEACCESSIONED')
               AND ((? = false AND ? = false AND ? = false) -- none set
                 OR (? = true AND dsv.archivalcopylocation IS NOT NULL AND dsv.archivalcopylocation::json ->> 'status' = 'success')
@@ -142,6 +152,7 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
 
         Object[] parameters = new Object[] {
             Timestamp.from(after.toInstant()),
+            Timestamp.from(before.toInstant()),
             archived,
             unarchived,
             failedArchived,

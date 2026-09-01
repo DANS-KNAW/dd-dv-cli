@@ -71,8 +71,17 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
     @Option(names = { "--filesize" }, description = "Include filesize in output")
     private boolean filesize;
 
-    @Option(names = { "--after" }, description = "Only include datafiles published after this timestamp (ISO-8601, e.g. 2025-01-01T00:00:00+01:00)", defaultValue = "1970-01-01T00:00:00Z")
+    @Option(names = { "--after" },
+        description = "Only include datafiles published after this date/time. Accepts an ISO-8601 date-time (e.g. 2025-01-01T00:00:00+01:00) or a plain date (e.g. 2025-01-01), which is treated as 2025-01-01T00:00:00Z.",
+        defaultValue = "1970-01-01T00:00:00Z",
+        converter = OffsetDateTimeConverter.class)
     private OffsetDateTime after;
+
+    @Option(names = { "--before" },
+        description = "Only include datafiles published before this date/time. Accepts an ISO-8601 date-time (e.g. 2025-01-01T00:00:00+01:00) or a plain date (e.g. 2025-01-01), which is treated as 2025-01-01T00:00:00Z.",
+        defaultValue = "9999-12-31T23:59:59Z",
+        converter = OffsetDateTimeConverter.class)
+    private OffsetDateTime before;
 
     @Override
     protected Integer doCall() throws Exception {
@@ -94,7 +103,6 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
          * Note that Dataverse stores the checksum of the *original* file in the datafile table but the length of the *.tab* file (if available).
          * To also get the length of the *original* file, we have to look in the datatable table.
          */
-        var publishedAfterClause = after != null ? "AND dvo.publicationdate > ?\n" : "";
         var query = """
             SELECT dvo.id                                                      AS FILEID,
                    ds_dvo.protocol || ':' || ds_dvo.authority || '/' || ds_dvo.identifier AS DATASET_PID,
@@ -108,13 +116,15 @@ public class DatafilesGetPublished extends AbstractDatabaseCmd implements Callab
                      LEFT JOIN datatable dt ON df.id = dt.datafile_id
             WHERE dvo.dtype = 'DataFile'
               AND dvo.publicationdate IS NOT NULL
-              """ + publishedAfterClause + """
+              AND dvo.publicationdate > ?
+              AND dvo.publicationdate < ?
             ORDER BY FILEID ASC;
             """;
 
-        var params = after != null
-            ? new Object[] { Timestamp.from(after.toInstant()) }
-            : new Object[0];
+        var params = new Object[] {
+            Timestamp.from(after.toInstant()),
+            Timestamp.from(before.toInstant()),
+        };
 
         try (var context = dbApi.query(query, (ResultSet rs) -> {
             try {

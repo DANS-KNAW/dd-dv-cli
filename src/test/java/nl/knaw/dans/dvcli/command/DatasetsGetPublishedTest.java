@@ -24,6 +24,8 @@ import picocli.CommandLine;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.sql.Timestamp;
+import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
 
@@ -54,13 +56,13 @@ public class DatasetsGetPublishedTest {
         Object[] params = paramsCaptor.getValue().get(0);
         
         // Expected order of params in fetchResults:
-        // after, archived, unarchived, failedArchived, archived, unarchived, failedArchived, updateCurrent, updateCurrent
-        assertThat(params[1]).isEqualTo(true);
-        assertThat(params[2]).isEqualTo(false);
+        // after, before, archived, unarchived, failedArchived, archived, unarchived, failedArchived, updateCurrent, updateCurrent
+        assertThat(params[2]).isEqualTo(true);
         assertThat(params[3]).isEqualTo(false);
-        assertThat(params[4]).isEqualTo(true);
-        assertThat(params[5]).isEqualTo(false);
+        assertThat(params[4]).isEqualTo(false);
+        assertThat(params[5]).isEqualTo(true);
         assertThat(params[6]).isEqualTo(false);
+        assertThat(params[7]).isEqualTo(false);
     }
 
     @Test
@@ -85,9 +87,9 @@ public class DatasetsGetPublishedTest {
         Mockito.verify(queryContext).executeFor(paramsCaptor.capture());
         Object[] params = paramsCaptor.getValue().get(0);
 
-        assertThat(params[1]).isEqualTo(false);
-        assertThat(params[2]).isEqualTo(true);
-        assertThat(params[3]).isEqualTo(false);
+        assertThat(params[2]).isEqualTo(false);
+        assertThat(params[3]).isEqualTo(true);
+        assertThat(params[4]).isEqualTo(false);
     }
 
     @Test
@@ -112,9 +114,9 @@ public class DatasetsGetPublishedTest {
         Mockito.verify(queryContext).executeFor(paramsCaptor.capture());
         Object[] params = paramsCaptor.getValue().get(0);
 
-        assertThat(params[1]).isEqualTo(false);
         assertThat(params[2]).isEqualTo(false);
-        assertThat(params[3]).isEqualTo(true);
+        assertThat(params[3]).isEqualTo(false);
+        assertThat(params[4]).isEqualTo(true);
     }
 
     @Test
@@ -139,8 +141,46 @@ public class DatasetsGetPublishedTest {
         Mockito.verify(queryContext).executeFor(paramsCaptor.capture());
         Object[] params = paramsCaptor.getValue().get(0);
 
-        assertThat(params[1]).isEqualTo(false);
         assertThat(params[2]).isEqualTo(false);
         assertThat(params[3]).isEqualTo(false);
+        assertThat(params[4]).isEqualTo(false);
+    }
+
+    @Test
+    public void date_only_after_is_extended_to_midnight_utc() throws Exception {
+        DatabaseApi dbApi = Mockito.mock(DatabaseApi.class);
+        QueryContext queryContext = Mockito.mock(QueryContext.class);
+        Mockito.when(dbApi.query(Mockito.anyString(), Mockito.any())).thenReturn(queryContext);
+        Mockito.when(queryContext.executeFor(Mockito.any())).thenReturn(Collections.emptyList());
+
+        DatasetsGetPublished cmd = new DatasetsGetPublished(dbApi);
+        CommandLine commandLine = new CommandLine(cmd);
+        commandLine.setOut(new PrintWriter(new StringWriter()));
+        commandLine.execute("--after", "2024-06-15");
+
+        ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
+        Mockito.verify(queryContext).executeFor(paramsCaptor.capture());
+        Object[] params = paramsCaptor.getValue().get(0);
+
+        assertThat(params[0]).isEqualTo(Timestamp.from(OffsetDateTime.parse("2024-06-15T00:00:00Z").toInstant()));
+    }
+
+    @Test
+    public void date_only_before_is_extended_to_midnight_utc() throws Exception {
+        DatabaseApi dbApi = Mockito.mock(DatabaseApi.class);
+        QueryContext queryContext = Mockito.mock(QueryContext.class);
+        Mockito.when(dbApi.query(Mockito.anyString(), Mockito.any())).thenReturn(queryContext);
+        Mockito.when(queryContext.executeFor(Mockito.any())).thenReturn(Collections.emptyList());
+
+        DatasetsGetPublished cmd = new DatasetsGetPublished(dbApi);
+        CommandLine commandLine = new CommandLine(cmd);
+        commandLine.setOut(new PrintWriter(new StringWriter()));
+        commandLine.execute("--before", "2025-03-20");
+
+        ArgumentCaptor<List<Object[]>> paramsCaptor = ArgumentCaptor.forClass(List.class);
+        Mockito.verify(queryContext).executeFor(paramsCaptor.capture());
+        Object[] params = paramsCaptor.getValue().get(0);
+
+        assertThat(params[1]).isEqualTo(Timestamp.from(OffsetDateTime.parse("2025-03-20T00:00:00Z").toInstant()));
     }
 }
