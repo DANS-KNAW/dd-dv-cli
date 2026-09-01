@@ -66,7 +66,9 @@ public class FilemetasGetPublished extends AbstractDatabaseCmd implements Callab
         List<FileMetadataInfo> results = fetchResults();
 
         if (!outputFile.getName().toLowerCase().endsWith(".csv")) {
+            File requestedOutputFile = outputFile;
             outputFile = new File(outputFile.getParentFile(), outputFile.getName() + ".csv");
+            System.err.printf("Output file '%s' does not end with .csv; writing to '%s'%n", requestedOutputFile, outputFile);
         }
 
         try (var out = new PrintWriter(outputFile)) {
