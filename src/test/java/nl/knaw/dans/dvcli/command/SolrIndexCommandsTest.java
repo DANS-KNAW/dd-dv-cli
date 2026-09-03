@@ -30,7 +30,8 @@ public class SolrIndexCommandsTest {
     @Test
     void index_status_calls_status_endpoint() throws Exception {
         var api = Mockito.mock(SolrIndexApi.class);
-        Mockito.when(api.status()).thenReturn(mockResponse());
+        var response = mockResponse();
+        Mockito.when(api.status()).thenReturn(response);
 
         var exitCode = new CommandLine(new IndexStatus(api)).execute();
 
@@ -41,7 +42,8 @@ public class SolrIndexCommandsTest {
     @Test
     void index_clear_calls_clear_endpoint() throws Exception {
         var api = Mockito.mock(SolrIndexApi.class);
-        Mockito.when(api.clear()).thenReturn(mockIndexResponse());
+        var response = mockIndexResponse();
+        Mockito.when(api.clear()).thenReturn(response);
 
         var exitCode = new CommandLine(new IndexClear(api)).execute();
 
@@ -52,7 +54,8 @@ public class SolrIndexCommandsTest {
     @Test
     void index_all_calls_index_all_endpoint() throws Exception {
         var api = Mockito.mock(SolrIndexApi.class);
-        Mockito.when(api.indexAll()).thenReturn(mockIndexResponse());
+        var response = mockIndexResponse();
+        Mockito.when(api.indexAll()).thenReturn(response);
 
         var exitCode = new CommandLine(new IndexAll(api)).execute();
 
@@ -63,7 +66,8 @@ public class SolrIndexCommandsTest {
     @Test
     void index_dataset_uses_numeric_dataset_id_when_argument_is_an_integer() throws Exception {
         var api = Mockito.mock(SolrIndexApi.class);
-        Mockito.when(api.indexDataset(42)).thenReturn(mockIndexResponse());
+        var response = mockIndexResponse();
+        Mockito.when(api.indexDataset(42)).thenReturn(response);
 
         var exitCode = new CommandLine(new IndexDataset(api)).execute("42");
 
@@ -75,7 +79,8 @@ public class SolrIndexCommandsTest {
     @Test
     void index_dataset_uses_persistent_identifier_when_argument_is_not_an_integer() throws Exception {
         var api = Mockito.mock(SolrIndexApi.class);
-        Mockito.when(api.indexDataset("doi:10.5072/FK2/ABCDEF")).thenReturn(mockIndexResponse());
+        var response = mockIndexResponse();
+        Mockito.when(api.indexDataset("doi:10.5072/FK2/ABCDEF")).thenReturn(response);
 
         var exitCode = new CommandLine(new IndexDataset(api)).execute("doi:10.5072/FK2/ABCDEF");
 
@@ -86,7 +91,8 @@ public class SolrIndexCommandsTest {
     @Test
     void index_dataverse_calls_index_dataverse_endpoint() throws Exception {
         var api = Mockito.mock(SolrIndexApi.class);
-        Mockito.when(api.indexDataverse(7)).thenReturn(mockResponse());
+        var response = mockResponse();
+        Mockito.when(api.indexDataverse(7)).thenReturn(response);
 
         var exitCode = new CommandLine(new IndexDataverse(api)).execute("7");
 
@@ -97,7 +103,8 @@ public class SolrIndexCommandsTest {
     @Test
     void index_clear_timestamps_calls_clear_timestamps_endpoint() throws Exception {
         var api = Mockito.mock(SolrIndexApi.class);
-        Mockito.when(api.clearTimestamps()).thenReturn(mockResponse());
+        var response = mockResponse();
+        Mockito.when(api.clearTimestamps()).thenReturn(response);
 
         var exitCode = new CommandLine(new IndexClearTimestamps(api)).execute();
 
@@ -105,12 +112,14 @@ public class SolrIndexCommandsTest {
         Mockito.verify(api).clearTimestamps();
     }
 
+    @SuppressWarnings("unchecked")
     private static DataverseHttpResponse<DataMessage> mockResponse() {
         var response = Mockito.mock(DataverseHttpResponse.class);
         Mockito.doReturn("{\"status\":\"OK\"}").when(response).getEnvelopeAsString();
         return response;
     }
 
+    @SuppressWarnings("unchecked")
     private static DataverseHttpResponse<DataMessageSolrIndex> mockIndexResponse() {
         var response = Mockito.mock(DataverseHttpResponse.class);
         Mockito.doReturn("{\"status\":\"OK\"}").when(response).getEnvelopeAsString();
