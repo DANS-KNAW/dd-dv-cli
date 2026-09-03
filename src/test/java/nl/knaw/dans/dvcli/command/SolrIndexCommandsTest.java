@@ -107,13 +107,13 @@ public class SolrIndexCommandsTest {
 
     private static DataverseHttpResponse<DataMessage> mockResponse() {
         var response = Mockito.mock(DataverseHttpResponse.class);
-        Mockito.when(response.getEnvelopeAsString()).thenReturn("{\"status\":\"OK\"}");
+        Mockito.doReturn("{\"status\":\"OK\"}").when(response).getEnvelopeAsString();
         return response;
     }
 
     private static DataverseHttpResponse<DataMessageSolrIndex> mockIndexResponse() {
         var response = Mockito.mock(DataverseHttpResponse.class);
-        Mockito.when(response.getEnvelopeAsString()).thenReturn("{\"status\":\"OK\"}");
+        Mockito.doReturn("{\"status\":\"OK\"}").when(response).getEnvelopeAsString();
         return response;
     }
 }
