@@ -26,6 +26,14 @@ dv dataset-direct-upload [ --label <label> ] [ -d <directoryLabel> ] \
    [ --keep-upload-state ] <pid> <file>
 dv storage-drivers-list
 
+# Solr index management
+dv index-status
+dv index-clear
+dv index-all
+dv index-dataset <datasetIdOrPid>
+dv index-dataverse <dataverseId>
+dv index-clear-timestamps
+
 # Reports
 dv datasets-get-published [ --after <after> ] [ --archived ] [ --unarchived ] \
    [ --updatecurrent ] [ -o <outputFile> [ -b <batchSize> ] ]
