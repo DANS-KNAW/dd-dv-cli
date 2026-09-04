@@ -46,6 +46,8 @@ dv dataverses-collect-storage-usage [ -m <maxDepth> ] [ -o <outputFile> ] \
    [ -f { csv | json } ]
 
 # Misc management
+dv settings-get <key>
+dv settings-put <key> <value>
 dv notifications-truncate [ --user <userId> ] --keep <keep>
 dv dataset-archive-version [ --skip-pids-from <skipPidsFrom> ] [ --force ] \
    [ --allow-rearchive-older-versions ] --report <reportBasename> \

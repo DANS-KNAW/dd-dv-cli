@@ -41,6 +41,8 @@ import nl.knaw.dans.dvcli.command.IndexDataset;
 import nl.knaw.dans.dvcli.command.IndexDataverse;
 import nl.knaw.dans.dvcli.command.IndexStatus;
 import nl.knaw.dans.dvcli.command.NotificationsTruncate;
+import nl.knaw.dans.dvcli.command.SettingsGet;
+import nl.knaw.dans.dvcli.command.SettingsPut;
 import nl.knaw.dans.dvcli.command.StorageDriversList;
 import nl.knaw.dans.dvcli.command.UsersImport;
 import nl.knaw.dans.dvcli.config.DdDvCliConfig;
@@ -72,6 +74,8 @@ public class DdDvCli extends nl.knaw.dans.lib.util.AbstractCommandLineApp<DdDvCl
         commandLine.addSubcommand(new BannerList(dataverseClient.admin()));
         commandLine.addSubcommand(new BannerAdd(dataverseClient.admin()));
         commandLine.addSubcommand(new BannerDelete(dataverseClient.admin()));
+        commandLine.addSubcommand(new SettingsGet(dataverseClient.admin()));
+        commandLine.addSubcommand(new SettingsPut(dataverseClient.admin()));
         commandLine.addSubcommand(new DatasetLockAdd(dataverseClient));
         commandLine.addSubcommand(new DatasetLockDelete(dataverseClient));
         commandLine.addSubcommand(new DatasetLockList(dataverseClient));
