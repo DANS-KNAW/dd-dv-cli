@@ -42,6 +42,10 @@ public class MetadataExportAll implements Callable<Integer> {
     @Override
     public Integer call() throws Exception {
         try {
+            if (!force && hasReExportFilters()) {
+                System.err.println("The options --older-than and --formats require --force.");
+                return 1;
+            }
             var response = force
                 ? metadataExportApi.reExportAll(olderThan, formats)
                 : metadataExportApi.exportAll();
@@ -52,5 +56,9 @@ public class MetadataExportAll implements Callable<Integer> {
             System.err.println("Error exporting metadata: " + e.getMessage());
             return 1;
         }
+    }
+
+    private boolean hasReExportFilters() {
+        return (olderThan != null && !olderThan.isBlank()) || (formats != null && formats.length > 0);
     }
 }

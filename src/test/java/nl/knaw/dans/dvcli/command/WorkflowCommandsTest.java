@@ -58,6 +58,24 @@ public class WorkflowCommandsTest {
     }
 
     @Test
+    void workflow_add_returns_non_zero_on_error() throws Exception {
+        var api = Mockito.mock(WorkflowsApi.class);
+        var inputJson = tempDir.resolve("workflow.json");
+        Files.writeString(inputJson, """
+            {
+              "name": "Test workflow",
+              "steps": []
+            }
+            """);
+        Mockito.when(api.addWorkflow(ArgumentMatchers.any(Workflow.class))).thenThrow(new DataverseException(500, "failure"));
+
+        var exitCode = new CommandLine(new WorkflowAdd(api)).execute("--input-json", inputJson.toString());
+
+        assertThat(exitCode).isEqualTo(1);
+        Mockito.verify(api).addWorkflow(ArgumentMatchers.any(Workflow.class));
+    }
+
+    @Test
     void workflow_list_calls_list_endpoint() throws Exception {
         var api = Mockito.mock(WorkflowsApi.class);
         var response = mockWorkflowListResponse();
@@ -66,6 +84,17 @@ public class WorkflowCommandsTest {
         var exitCode = new CommandLine(new WorkflowList(api)).execute();
 
         assertThat(exitCode).isZero();
+        Mockito.verify(api).listWorkflows();
+    }
+
+    @Test
+    void workflow_list_returns_non_zero_on_error() throws Exception {
+        var api = Mockito.mock(WorkflowsApi.class);
+        Mockito.when(api.listWorkflows()).thenThrow(new DataverseException(500, "failure"));
+
+        var exitCode = new CommandLine(new WorkflowList(api)).execute();
+
+        assertThat(exitCode).isEqualTo(1);
         Mockito.verify(api).listWorkflows();
     }
 
@@ -82,6 +111,17 @@ public class WorkflowCommandsTest {
     }
 
     @Test
+    void workflow_get_returns_non_zero_on_error() throws Exception {
+        var api = Mockito.mock(WorkflowsApi.class);
+        Mockito.when(api.getWorkflow(42L)).thenThrow(new DataverseException(500, "failure"));
+
+        var exitCode = new CommandLine(new WorkflowGet(api)).execute("42");
+
+        assertThat(exitCode).isEqualTo(1);
+        Mockito.verify(api).getWorkflow(42L);
+    }
+
+    @Test
     void workflow_delete_calls_delete_endpoint() throws Exception {
         var api = Mockito.mock(WorkflowsApi.class);
         var response = mockDataMessageResponse();
@@ -90,6 +130,17 @@ public class WorkflowCommandsTest {
         var exitCode = new CommandLine(new WorkflowDelete(api)).execute("42");
 
         assertThat(exitCode).isZero();
+        Mockito.verify(api).deleteWorkflow(42L);
+    }
+
+    @Test
+    void workflow_delete_returns_non_zero_on_error() throws Exception {
+        var api = Mockito.mock(WorkflowsApi.class);
+        Mockito.when(api.deleteWorkflow(42L)).thenThrow(new DataverseException(500, "failure"));
+
+        var exitCode = new CommandLine(new WorkflowDelete(api)).execute("42");
+
+        assertThat(exitCode).isEqualTo(1);
         Mockito.verify(api).deleteWorkflow(42L);
     }
 
@@ -106,6 +157,17 @@ public class WorkflowCommandsTest {
     }
 
     @Test
+    void workflow_list_defaults_returns_non_zero_on_error() throws Exception {
+        var api = Mockito.mock(WorkflowsApi.class);
+        Mockito.when(api.listDefaults()).thenThrow(new DataverseException(500, "failure"));
+
+        var exitCode = new CommandLine(new WorkflowListDefaults(api)).execute();
+
+        assertThat(exitCode).isEqualTo(1);
+        Mockito.verify(api).listDefaults();
+    }
+
+    @Test
     void workflow_get_default_calls_endpoint() throws Exception {
         var api = Mockito.mock(WorkflowsApi.class);
         var response = mockWorkflowResponse();
@@ -114,6 +176,17 @@ public class WorkflowCommandsTest {
         var exitCode = new CommandLine(new WorkflowGetDefault(api)).execute("PrePublishDataset");
 
         assertThat(exitCode).isZero();
+        Mockito.verify(api).getDefault("PrePublishDataset");
+    }
+
+    @Test
+    void workflow_get_default_returns_non_zero_on_error() throws Exception {
+        var api = Mockito.mock(WorkflowsApi.class);
+        Mockito.when(api.getDefault("PrePublishDataset")).thenThrow(new DataverseException(500, "failure"));
+
+        var exitCode = new CommandLine(new WorkflowGetDefault(api)).execute("PrePublishDataset");
+
+        assertThat(exitCode).isEqualTo(1);
         Mockito.verify(api).getDefault("PrePublishDataset");
     }
 
@@ -176,6 +249,17 @@ public class WorkflowCommandsTest {
     }
 
     @Test
+    void workflow_set_ip_whitelist_returns_non_zero_on_error() throws Exception {
+        var api = Mockito.mock(WorkflowsApi.class);
+        Mockito.when(api.setIpWhitelist("127.0.0.1/32,10.0.0.0/24")).thenThrow(new DataverseException(500, "failure"));
+
+        var exitCode = new CommandLine(new WorkflowSetIpWhitelist(api)).execute("127.0.0.1/32,10.0.0.0/24");
+
+        assertThat(exitCode).isEqualTo(1);
+        Mockito.verify(api).setIpWhitelist("127.0.0.1/32,10.0.0.0/24");
+    }
+
+    @Test
     void workflow_delete_ip_whitelist_calls_endpoint() throws Exception {
         var api = Mockito.mock(WorkflowsApi.class);
         var response = mockDataMessageResponse();
@@ -184,6 +268,17 @@ public class WorkflowCommandsTest {
         var exitCode = new CommandLine(new WorkflowDeleteIpWhitelist(api)).execute();
 
         assertThat(exitCode).isZero();
+        Mockito.verify(api).deleteIpWhitelist();
+    }
+
+    @Test
+    void workflow_delete_ip_whitelist_returns_non_zero_on_error() throws Exception {
+        var api = Mockito.mock(WorkflowsApi.class);
+        Mockito.when(api.deleteIpWhitelist()).thenThrow(new DataverseException(500, "failure"));
+
+        var exitCode = new CommandLine(new WorkflowDeleteIpWhitelist(api)).execute();
+
+        assertThat(exitCode).isEqualTo(1);
         Mockito.verify(api).deleteIpWhitelist();
     }
 

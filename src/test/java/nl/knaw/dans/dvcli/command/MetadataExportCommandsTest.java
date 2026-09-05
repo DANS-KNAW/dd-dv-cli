@@ -40,6 +40,16 @@ public class MetadataExportCommandsTest {
     }
 
     @Test
+    void metadata_export_all_rejects_filters_without_force() throws Exception {
+        var api = Mockito.mock(MetadataExportApi.class);
+
+        var exitCode = new CommandLine(new MetadataExportAll(api)).execute("--older-than", "2026-01-01", "--formats", "Datacite");
+
+        assertThat(exitCode).isEqualTo(1);
+        Mockito.verifyNoInteractions(api);
+    }
+
+    @Test
     void metadata_export_all_with_force_passes_filters() throws Exception {
         var api = Mockito.mock(MetadataExportApi.class);
         var response = mockResponse();
