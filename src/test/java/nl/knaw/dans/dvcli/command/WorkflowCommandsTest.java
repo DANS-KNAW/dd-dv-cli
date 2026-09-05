@@ -237,6 +237,18 @@ public class WorkflowCommandsTest {
     }
 
     @Test
+    void workflow_get_ip_whitelist_calls_endpoint() throws Exception {
+        var api = Mockito.mock(WorkflowsApi.class);
+        var response = mockDataMessageResponse();
+        Mockito.when(api.getIpWhitelist()).thenReturn(response);
+
+        var exitCode = new CommandLine(new WorkflowGetIpWhitelist(api)).execute();
+
+        assertThat(exitCode).isZero();
+        Mockito.verify(api).getIpWhitelist();
+    }
+
+    @Test
     void workflow_set_ip_whitelist_calls_endpoint() throws Exception {
         var api = Mockito.mock(WorkflowsApi.class);
         var response = mockStringResponse();
