@@ -28,6 +28,7 @@ import picocli.CommandLine;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -59,7 +60,7 @@ public class WorkflowCommandsTest {
     @Test
     void workflow_list_calls_list_endpoint() throws Exception {
         var api = Mockito.mock(WorkflowsApi.class);
-        var response = mockResponse();
+        var response = mockWorkflowListResponse();
         Mockito.when(api.listWorkflows()).thenReturn(response);
 
         var exitCode = new CommandLine(new WorkflowList(api)).execute();
@@ -187,7 +188,7 @@ public class WorkflowCommandsTest {
     }
 
     @SuppressWarnings("unchecked")
-    private static DataverseHttpResponse<Object> mockResponse() {
+    private static DataverseHttpResponse<List<Workflow>> mockWorkflowListResponse() {
         var response = Mockito.mock(DataverseHttpResponse.class);
         Mockito.doReturn("{\"status\":\"OK\"}").when(response).getEnvelopeAsString();
         return response;

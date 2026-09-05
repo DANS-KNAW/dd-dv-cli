@@ -60,10 +60,9 @@ dv workflow-delete-default <triggerType>
 dv workflow-get-ip-whitelist
 dv workflow-set-ip-whitelist <ipWhitelist>
 dv workflow-delete-ip-whitelist
-dv metadata-export-export-all
-dv metadata-export-re-export-all [ --older-than <date> ] [ --formats <formats> ]
-dv metadata-export-clear-export-timestamps
-dv metadata-export-re-export-dataset <datasetIdOrPid> [ --formats <formats> ]
+dv metadata-export-all [ -f | --force ] [ --older-than <date> ] [ --formats <formats> ]
+dv metadata-export-clear-timestamps
+dv metadata-export-dataset <datasetIdOrPid> [ --formats <formats> ]
 dv notifications-truncate [ --user <userId> ] --keep <keep>
 dv dataset-archive-version [ --skip-pids-from <skipPidsFrom> ] [ --force ] \
    [ --allow-rearchive-older-versions ] --report <reportBasename> \

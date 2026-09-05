@@ -19,20 +19,32 @@ import lombok.RequiredArgsConstructor;
 import nl.knaw.dans.lib.dataverse.DataverseException;
 import nl.knaw.dans.lib.dataverse.MetadataExportApi;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 import java.util.concurrent.Callable;
 
-@Command(name = "metadata-export-export-all",
+@Command(name = "metadata-export-all",
          description = "Exports all published local datasets that have not been exported yet",
          mixinStandardHelpOptions = true)
 @RequiredArgsConstructor
-public class MetadataExportExportAll implements Callable<Integer> {
+public class MetadataExportAll implements Callable<Integer> {
     private final MetadataExportApi metadataExportApi;
+
+    @Option(names = { "-f", "--force" }, description = "Force re-export of metadata")
+    private boolean force;
+
+    @Option(names = { "--older-than" }, description = "Only re-export datasets exported before this date (YYYY-MM-DD)")
+    private String olderThan;
+
+    @Option(names = { "--formats" }, split = ",", description = "Comma-separated metadata formats to export")
+    private String[] formats;
 
     @Override
     public Integer call() throws Exception {
         try {
-            var response = metadataExportApi.exportAll();
+            var response = force
+                ? metadataExportApi.reExportAll(olderThan, formats)
+                : metadataExportApi.exportAll();
             System.out.println(response.getEnvelopeAsString());
             return 0;
         }

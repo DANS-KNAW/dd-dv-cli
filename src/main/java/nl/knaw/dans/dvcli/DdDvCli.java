@@ -41,10 +41,9 @@ import nl.knaw.dans.dvcli.command.IndexClearTimestamps;
 import nl.knaw.dans.dvcli.command.IndexDataset;
 import nl.knaw.dans.dvcli.command.IndexDataverse;
 import nl.knaw.dans.dvcli.command.IndexStatus;
-import nl.knaw.dans.dvcli.command.MetadataExportClearExportTimestamps;
-import nl.knaw.dans.dvcli.command.MetadataExportExportAll;
-import nl.knaw.dans.dvcli.command.MetadataExportReExportAll;
-import nl.knaw.dans.dvcli.command.MetadataExportReExportDataset;
+import nl.knaw.dans.dvcli.command.MetadataExportAll;
+import nl.knaw.dans.dvcli.command.MetadataExportClearTimestamps;
+import nl.knaw.dans.dvcli.command.MetadataExportDataset;
 import nl.knaw.dans.dvcli.command.NotificationsTruncate;
 import nl.knaw.dans.dvcli.command.SettingsGet;
 import nl.knaw.dans.dvcli.command.SettingsList;
@@ -128,10 +127,9 @@ public class DdDvCli extends nl.knaw.dans.lib.util.AbstractCommandLineApp<DdDvCl
         commandLine.addSubcommand(new WorkflowGetIpWhitelist(dataverseClient.workflows()));
         commandLine.addSubcommand(new WorkflowSetIpWhitelist(dataverseClient.workflows()));
         commandLine.addSubcommand(new WorkflowDeleteIpWhitelist(dataverseClient.workflows()));
-        commandLine.addSubcommand(new MetadataExportExportAll(dataverseClient.metadataExport()));
-        commandLine.addSubcommand(new MetadataExportReExportAll(dataverseClient.metadataExport()));
-        commandLine.addSubcommand(new MetadataExportClearExportTimestamps(dataverseClient.metadataExport()));
-        commandLine.addSubcommand(new MetadataExportReExportDataset(dataverseClient.metadataExport()));
+        commandLine.addSubcommand(new MetadataExportAll(dataverseClient.metadataExport()));
+        commandLine.addSubcommand(new MetadataExportClearTimestamps(dataverseClient.metadataExport()));
+        commandLine.addSubcommand(new MetadataExportDataset(dataverseClient.metadataExport()));
 
         // Must be called last to ensure it is available to subcommands (see JavaDoc of registerConverter)
         commandLine.registerConverter(DataSize.class, DataSize::parse);

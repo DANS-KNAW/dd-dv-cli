@@ -24,11 +24,11 @@ import picocli.CommandLine.Parameters;
 
 import java.util.concurrent.Callable;
 
-@Command(name = "metadata-export-re-export-dataset",
+@Command(name = "metadata-export-dataset",
          description = "Forces re-export of a specific dataset",
          mixinStandardHelpOptions = true)
 @RequiredArgsConstructor
-public class MetadataExportReExportDataset implements Callable<Integer> {
+public class MetadataExportDataset implements Callable<Integer> {
     private final MetadataExportApi metadataExportApi;
 
     @Parameters(index = "0", paramLabel = "DATASET_ID_OR_PID", description = "Dataset database id or persistent identifier")

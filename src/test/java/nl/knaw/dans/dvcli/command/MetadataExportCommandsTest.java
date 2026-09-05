@@ -33,30 +33,30 @@ public class MetadataExportCommandsTest {
         var response = mockResponse();
         Mockito.when(api.exportAll()).thenReturn(response);
 
-        var exitCode = new CommandLine(new MetadataExportExportAll(api)).execute();
+        var exitCode = new CommandLine(new MetadataExportAll(api)).execute();
 
         assertThat(exitCode).isZero();
         Mockito.verify(api).exportAll();
     }
 
     @Test
-    void metadata_re_export_all_passes_filters() throws Exception {
+    void metadata_export_all_with_force_passes_filters() throws Exception {
         var api = Mockito.mock(MetadataExportApi.class);
         var response = mockResponse();
         Mockito.when(api.reExportAll("2026-01-01", new String[] { "Datacite", "croissant" })).thenReturn(response);
 
-        var exitCode = new CommandLine(new MetadataExportReExportAll(api)).execute("--older-than", "2026-01-01", "--formats", "Datacite,croissant");
+        var exitCode = new CommandLine(new MetadataExportAll(api)).execute("--force", "--older-than", "2026-01-01", "--formats", "Datacite,croissant");
 
         assertThat(exitCode).isZero();
         Mockito.verify(api).reExportAll("2026-01-01", new String[] { "Datacite", "croissant" });
     }
 
     @Test
-    void metadata_re_export_all_returns_non_zero_on_error() throws Exception {
+    void metadata_export_all_with_force_returns_non_zero_on_error() throws Exception {
         var api = Mockito.mock(MetadataExportApi.class);
         Mockito.when(api.reExportAll("2026-01-01", new String[] { "Datacite", "croissant" })).thenThrow(new DataverseException(500, "failure"));
 
-        var exitCode = new CommandLine(new MetadataExportReExportAll(api)).execute("--older-than", "2026-01-01", "--formats", "Datacite,croissant");
+        var exitCode = new CommandLine(new MetadataExportAll(api)).execute("-f", "--older-than", "2026-01-01", "--formats", "Datacite,croissant");
 
         assertThat(exitCode).isEqualTo(1);
         Mockito.verify(api).reExportAll("2026-01-01", new String[] { "Datacite", "croissant" });
@@ -68,7 +68,7 @@ public class MetadataExportCommandsTest {
         var response = mockResponse();
         Mockito.when(api.reExportDataset("doi:10.5072/FK2/ABC", new String[] { "Datacite" })).thenReturn(response);
 
-        var exitCode = new CommandLine(new MetadataExportReExportDataset(api)).execute("doi:10.5072/FK2/ABC", "--formats", "Datacite");
+        var exitCode = new CommandLine(new MetadataExportDataset(api)).execute("doi:10.5072/FK2/ABC", "--formats", "Datacite");
 
         assertThat(exitCode).isZero();
         Mockito.verify(api).reExportDataset("doi:10.5072/FK2/ABC", new String[] { "Datacite" });
@@ -80,7 +80,7 @@ public class MetadataExportCommandsTest {
         var response = mockResponse();
         Mockito.when(api.reExportDataset(42, new String[] { "Datacite" })).thenReturn(response);
 
-        var exitCode = new CommandLine(new MetadataExportReExportDataset(api)).execute("42", "--formats", "Datacite");
+        var exitCode = new CommandLine(new MetadataExportDataset(api)).execute("42", "--formats", "Datacite");
 
         assertThat(exitCode).isZero();
         Mockito.verify(api).reExportDataset(42, new String[] { "Datacite" });
@@ -92,7 +92,7 @@ public class MetadataExportCommandsTest {
         var response = mockDataMessageResponse();
         Mockito.when(api.clearExportTimestamps()).thenReturn(response);
 
-        var exitCode = new CommandLine(new MetadataExportClearExportTimestamps(api)).execute();
+        var exitCode = new CommandLine(new MetadataExportClearTimestamps(api)).execute();
 
         assertThat(exitCode).isZero();
         Mockito.verify(api).clearExportTimestamps();
@@ -102,7 +102,7 @@ public class MetadataExportCommandsTest {
     void metadata_re_export_dataset_returns_non_zero_when_numeric_id_is_out_of_range() throws Exception {
         var api = Mockito.mock(MetadataExportApi.class);
 
-        var exitCode = new CommandLine(new MetadataExportReExportDataset(api)).execute("2147483648");
+        var exitCode = new CommandLine(new MetadataExportDataset(api)).execute("2147483648");
 
         assertThat(exitCode).isEqualTo(1);
         Mockito.verifyNoInteractions(api);
@@ -113,7 +113,7 @@ public class MetadataExportCommandsTest {
         var api = Mockito.mock(MetadataExportApi.class);
         Mockito.when(api.clearExportTimestamps()).thenThrow(new DataverseException(500, "failure"));
 
-        var exitCode = new CommandLine(new MetadataExportClearExportTimestamps(api)).execute();
+        var exitCode = new CommandLine(new MetadataExportClearTimestamps(api)).execute();
 
         assertThat(exitCode).isEqualTo(1);
         Mockito.verify(api).clearExportTimestamps();

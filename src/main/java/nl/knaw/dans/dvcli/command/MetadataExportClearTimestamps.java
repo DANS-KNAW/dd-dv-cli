@@ -19,32 +19,25 @@ import lombok.RequiredArgsConstructor;
 import nl.knaw.dans.lib.dataverse.DataverseException;
 import nl.knaw.dans.lib.dataverse.MetadataExportApi;
 import picocli.CommandLine.Command;
-import picocli.CommandLine.Option;
 
 import java.util.concurrent.Callable;
 
-@Command(name = "metadata-export-re-export-all",
-         description = "Forces re-export of all published local datasets",
+@Command(name = "metadata-export-clear-timestamps",
+         description = "Clears metadata export timestamps on published local datasets",
          mixinStandardHelpOptions = true)
 @RequiredArgsConstructor
-public class MetadataExportReExportAll implements Callable<Integer> {
+public class MetadataExportClearTimestamps implements Callable<Integer> {
     private final MetadataExportApi metadataExportApi;
-
-    @Option(names = { "--older-than" }, description = "Only re-export datasets exported before this date (YYYY-MM-DD)")
-    private String olderThan;
-
-    @Option(names = { "--formats" }, split = ",", description = "Comma-separated metadata formats to export")
-    private String[] formats;
 
     @Override
     public Integer call() throws Exception {
         try {
-            var response = metadataExportApi.reExportAll(olderThan, formats);
+            var response = metadataExportApi.clearExportTimestamps();
             System.out.println(response.getEnvelopeAsString());
             return 0;
         }
         catch (DataverseException e) {
-            System.err.println("Error re-exporting metadata: " + e.getMessage());
+            System.err.println("Error clearing metadata export timestamps: " + e.getMessage());
             return 1;
         }
     }
