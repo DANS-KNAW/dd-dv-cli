@@ -52,6 +52,17 @@ public class MetadataExportCommandsTest {
     }
 
     @Test
+    void metadata_re_export_all_returns_non_zero_on_error() throws Exception {
+        var api = Mockito.mock(MetadataExportApi.class);
+        Mockito.when(api.reExportAll("2026-01-01", new String[] { "Datacite", "croissant" })).thenThrow(new DataverseException(500, "failure"));
+
+        var exitCode = new CommandLine(new MetadataExportReExportAll(api)).execute("--older-than", "2026-01-01", "--formats", "Datacite,croissant");
+
+        assertThat(exitCode).isEqualTo(1);
+        Mockito.verify(api).reExportAll("2026-01-01", new String[] { "Datacite", "croissant" });
+    }
+
+    @Test
     void metadata_re_export_dataset_uses_pid_when_not_numeric() throws Exception {
         var api = Mockito.mock(MetadataExportApi.class);
         var response = mockResponse();

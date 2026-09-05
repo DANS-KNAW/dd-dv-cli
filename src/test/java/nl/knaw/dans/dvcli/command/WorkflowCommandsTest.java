@@ -129,6 +129,17 @@ public class WorkflowCommandsTest {
     }
 
     @Test
+    void workflow_set_default_returns_non_zero_on_error() throws Exception {
+        var api = Mockito.mock(WorkflowsApi.class);
+        Mockito.when(api.setDefault("PrePublishDataset", 42L)).thenThrow(new DataverseException(500, "failure"));
+
+        var exitCode = new CommandLine(new WorkflowSetDefault(api)).execute("PrePublishDataset", "42");
+
+        assertThat(exitCode).isEqualTo(1);
+        Mockito.verify(api).setDefault("PrePublishDataset", 42L);
+    }
+
+    @Test
     void workflow_delete_default_calls_endpoint() throws Exception {
         var api = Mockito.mock(WorkflowsApi.class);
         var response = mockDataMessageResponse();

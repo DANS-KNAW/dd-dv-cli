@@ -53,7 +53,7 @@ public class MetadataExportReExportDataset implements Callable<Integer> {
     private nl.knaw.dans.lib.dataverse.DataverseHttpResponse<Object> reExportDataset() throws Exception {
         try {
             long id = Long.parseLong(datasetIdOrPid);
-            if (id < Integer.MIN_VALUE || id > Integer.MAX_VALUE) {
+            if (id < 0 || id > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException("Dataset numeric id is out of supported range: " + id);
             }
             return metadataExportApi.reExportDataset((int) id, formats);
