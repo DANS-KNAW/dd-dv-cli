@@ -44,7 +44,7 @@ public class MetadataExportDataset implements Callable<Integer> {
             System.out.println(response.getEnvelopeAsString());
             return 0;
         }
-        catch (DataverseException | IllegalArgumentException e) {
+        catch (DataverseException e) {
             System.err.println("Error re-exporting dataset metadata: " + e.getMessage());
             return 1;
         }
@@ -53,10 +53,10 @@ public class MetadataExportDataset implements Callable<Integer> {
     private nl.knaw.dans.lib.dataverse.DataverseHttpResponse<Object> reExportDataset() throws Exception {
         try {
             long id = Long.parseLong(datasetIdOrPid);
-            if (id < 0 || id > Integer.MAX_VALUE) {
-                throw new IllegalArgumentException("Dataset numeric id is out of supported range: " + id);
+            if (id >= 0 && id <= Integer.MAX_VALUE) {
+                return metadataExportApi.reExportDataset((int) id, formats);
             }
-            return metadataExportApi.reExportDataset((int) id, formats);
+            return metadataExportApi.reExportDataset(datasetIdOrPid, formats);
         }
         catch (NumberFormatException e) {
             return metadataExportApi.reExportDataset(datasetIdOrPid, formats);

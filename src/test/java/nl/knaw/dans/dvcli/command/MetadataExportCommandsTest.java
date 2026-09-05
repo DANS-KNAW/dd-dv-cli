@@ -50,6 +50,26 @@ public class MetadataExportCommandsTest {
     }
 
     @Test
+    void metadata_export_all_rejects_older_than_without_force() throws Exception {
+        var api = Mockito.mock(MetadataExportApi.class);
+
+        var exitCode = new CommandLine(new MetadataExportAll(api)).execute("--older-than", "2026-01-01");
+
+        assertThat(exitCode).isEqualTo(1);
+        Mockito.verifyNoInteractions(api);
+    }
+
+    @Test
+    void metadata_export_all_rejects_formats_without_force() throws Exception {
+        var api = Mockito.mock(MetadataExportApi.class);
+
+        var exitCode = new CommandLine(new MetadataExportAll(api)).execute("--formats", "Datacite");
+
+        assertThat(exitCode).isEqualTo(1);
+        Mockito.verifyNoInteractions(api);
+    }
+
+    @Test
     void metadata_export_all_with_force_passes_filters() throws Exception {
         var api = Mockito.mock(MetadataExportApi.class);
         var response = mockResponse();
@@ -97,6 +117,18 @@ public class MetadataExportCommandsTest {
     }
 
     @Test
+    void metadata_re_export_dataset_uses_pid_when_numeric_id_is_out_of_range() throws Exception {
+        var api = Mockito.mock(MetadataExportApi.class);
+        var response = mockResponse();
+        Mockito.when(api.reExportDataset("2147483648", new String[] { "Datacite" })).thenReturn(response);
+
+        var exitCode = new CommandLine(new MetadataExportDataset(api)).execute("2147483648", "--formats", "Datacite");
+
+        assertThat(exitCode).isZero();
+        Mockito.verify(api).reExportDataset("2147483648", new String[] { "Datacite" });
+    }
+
+    @Test
     void metadata_clear_timestamps_calls_endpoint() throws Exception {
         var api = Mockito.mock(MetadataExportApi.class);
         var response = mockDataMessageResponse();
@@ -109,13 +141,14 @@ public class MetadataExportCommandsTest {
     }
 
     @Test
-    void metadata_re_export_dataset_returns_non_zero_when_numeric_id_is_out_of_range() throws Exception {
+    void metadata_re_export_dataset_returns_non_zero_on_pid_error() throws Exception {
         var api = Mockito.mock(MetadataExportApi.class);
+        Mockito.when(api.reExportDataset("doi:10.5072/FK2/ABC", new String[] { "Datacite" })).thenThrow(new DataverseException(500, "failure"));
 
-        var exitCode = new CommandLine(new MetadataExportDataset(api)).execute("2147483648");
+        var exitCode = new CommandLine(new MetadataExportDataset(api)).execute("doi:10.5072/FK2/ABC", "--formats", "Datacite");
 
         assertThat(exitCode).isEqualTo(1);
-        Mockito.verifyNoInteractions(api);
+        Mockito.verify(api).reExportDataset("doi:10.5072/FK2/ABC", new String[] { "Datacite" });
     }
 
     @Test
