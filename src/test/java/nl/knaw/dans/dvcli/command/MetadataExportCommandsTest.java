@@ -64,6 +64,40 @@ public class MetadataExportCommandsTest {
     }
 
     @Test
+    void metadata_re_export_dataset_uses_numeric_id_when_numeric() throws Exception {
+        var api = Mockito.mock(MetadataExportApi.class);
+        var response = mockResponse();
+        Mockito.when(api.reExportDataset(42, new String[] { "Datacite" })).thenReturn(response);
+
+        var exitCode = new CommandLine(new MetadataExportReExportDataset(api)).execute("42", "--formats", "Datacite");
+
+        assertThat(exitCode).isZero();
+        Mockito.verify(api).reExportDataset(42, new String[] { "Datacite" });
+    }
+
+    @Test
+    void metadata_clear_timestamps_calls_endpoint() throws Exception {
+        var api = Mockito.mock(MetadataExportApi.class);
+        var response = mockDataMessageResponse();
+        Mockito.when(api.clearExportTimestamps()).thenReturn(response);
+
+        var exitCode = new CommandLine(new MetadataExportClearExportTimestamps(api)).execute();
+
+        assertThat(exitCode).isZero();
+        Mockito.verify(api).clearExportTimestamps();
+    }
+
+    @Test
+    void metadata_re_export_dataset_returns_non_zero_when_numeric_id_is_out_of_range() throws Exception {
+        var api = Mockito.mock(MetadataExportApi.class);
+
+        var exitCode = new CommandLine(new MetadataExportReExportDataset(api)).execute("2147483648");
+
+        assertThat(exitCode).isEqualTo(1);
+        Mockito.verifyNoInteractions(api);
+    }
+
+    @Test
     void metadata_clear_timestamps_returns_non_zero_on_error() throws Exception {
         var api = Mockito.mock(MetadataExportApi.class);
         Mockito.when(api.clearExportTimestamps()).thenThrow(new DataverseException(500, "failure"));
