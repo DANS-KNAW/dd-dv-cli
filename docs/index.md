@@ -48,10 +48,27 @@ dv dataverses-collect-storage-usage [ -m <maxDepth> ] [ -o <outputFile> ] \
 # Misc management
 dv settings-get <key>
 dv settings-put <key> <value>
+dv settings-list
+dv workflow-add -i <inputJson>
+dv workflow-list
+dv workflow-get <workflowId>
+dv workflow-delete <workflowId>
+dv workflow-list-defaults
+dv workflow-get-default <triggerType>
+dv workflow-set-default <triggerType> <workflowId>
+dv workflow-delete-default <triggerType>
+dv workflow-get-ip-whitelist
+dv workflow-set-ip-whitelist <ipWhitelist>
+dv workflow-delete-ip-whitelist
+dv metadata-export-export-all
+dv metadata-export-re-export-all [ --older-than <date> ] [ --formats <formats> ]
+dv metadata-export-clear-export-timestamps
+dv metadata-export-re-export-dataset <datasetIdOrPid> [ --formats <formats> ]
 dv notifications-truncate [ --user <userId> ] --keep <keep>
 dv dataset-archive-version [ --skip-pids-from <skipPidsFrom> ] [ --force ] \
    [ --allow-rearchive-older-versions ] --report <reportBasename> \
    [ -w <waitBetweenItems> ] { -p <pid> -v <version> | -i <inputFile> }
+dv dataset-update-registration-metadata <pid>
 dv users-import -i <inputCsv> -k <builtinUsersKey> [ --dry-run ]
 
 ```

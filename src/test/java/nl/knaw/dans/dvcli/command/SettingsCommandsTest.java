@@ -75,6 +75,29 @@ public class SettingsCommandsTest {
         Mockito.verify(api).putDatabaseSetting("DataverseSiteUrl", "https://example.org");
     }
 
+    @Test
+    void settings_list_calls_list_settings_endpoint() throws Exception {
+        var api = Mockito.mock(AdminApi.class);
+        var response = mockMapResponse();
+        Mockito.when(api.listAllDatabaseSettings()).thenReturn(response);
+
+        var exitCode = new CommandLine(new SettingsList(api)).execute();
+
+        assertThat(exitCode).isZero();
+        Mockito.verify(api).listAllDatabaseSettings();
+    }
+
+    @Test
+    void settings_list_returns_non_zero_when_list_settings_fails() throws Exception {
+        var api = Mockito.mock(AdminApi.class);
+        Mockito.when(api.listAllDatabaseSettings()).thenThrow(new DataverseException(500, "failure"));
+
+        var exitCode = new CommandLine(new SettingsList(api)).execute();
+
+        assertThat(exitCode).isEqualTo(1);
+        Mockito.verify(api).listAllDatabaseSettings();
+    }
+
     @SuppressWarnings("unchecked")
     private static DataverseHttpResponse<DataMessage> mockDataMessageResponse() {
         var response = Mockito.mock(DataverseHttpResponse.class);
