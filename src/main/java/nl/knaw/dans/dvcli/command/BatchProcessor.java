@@ -27,6 +27,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -132,9 +133,10 @@ public class BatchProcessor implements Closeable {
 
     private final CSVPrinter printer;
     private final List<String> headers;
-    private final List<Map<String, String>> rows;
+    private final Iterator<Map<String, String>> rows;
+    private final Closeable closeable;
 
-    private BatchProcessor(List<String> headers, List<Map<String, String>> rows, Writer writer) throws IOException {
+    private BatchProcessor(List<String> headers, Iterator<Map<String, String>> rows, Closeable closeable, Writer writer) throws IOException {
         for (String reportColumn : REPORT_COLUMNS) {
             if (headers.contains(reportColumn)) {
                 throw new IllegalArgumentException("Input contains reserved column: " + reportColumn);
@@ -142,7 +144,8 @@ public class BatchProcessor implements Closeable {
         }
 
         this.headers = List.copyOf(headers);
-        this.rows = List.copyOf(rows);
+        this.rows = rows;
+        this.closeable = closeable;
 
         var reportHeaders = new ArrayList<>(headers);
         reportHeaders.addAll(REPORT_COLUMNS);
@@ -152,29 +155,48 @@ public class BatchProcessor implements Closeable {
     }
 
     public static BatchProcessor forCsv(Path inputFile, Writer writer) throws IOException {
-        try (var reader = Files.newBufferedReader(inputFile);
+        var reader = Files.newBufferedReader(inputFile);
+        try {
             CSVParser parser = CSVFormat.DEFAULT.builder()
                 .setHeader()
                 .setSkipHeaderRecord(true)
                 .setTrim(true)
                 .get()
-                .parse(reader)) {
+                .parse(reader);
             var headers = parser.getHeaderNames();
-            var rows = new ArrayList<Map<String, String>>();
-            for (CSVRecord record : parser) {
-                var values = new LinkedHashMap<String, String>();
-                for (String header : headers) {
-                    values.put(header, record.get(header));
+            var records = parser.iterator();
+            var rows = new Iterator<Map<String, String>>() {
+                @Override
+                public boolean hasNext() {
+                    return records.hasNext();
                 }
-                rows.add(values);
-            }
-            return new BatchProcessor(headers, rows, writer);
+
+                @Override
+                public Map<String, String> next() {
+                    CSVRecord record = records.next();
+                    var values = new LinkedHashMap<String, String>();
+                    for (String header : headers) {
+                        values.put(header, record.get(header));
+                    }
+                    return values;
+                }
+            };
+            return new BatchProcessor(headers, rows, () -> {
+                parser.close();
+                reader.close();
+            }, writer);
+        }
+        catch (Exception e) {
+            reader.close();
+            throw e;
         }
     }
 
     public static BatchProcessor forSingleRow(Map<String, String> row, Writer writer) throws IOException {
         var headers = new ArrayList<>(row.keySet());
-        return new BatchProcessor(headers, List.of(new LinkedHashMap<>(row)), writer);
+        List<Map<String, String>> rows = List.of(new LinkedHashMap<>(row));
+        return new BatchProcessor(headers, rows.iterator(), () -> {
+        }, writer);
     }
 
     public Summary process(RowHandler handler) throws IOException {
@@ -182,8 +204,9 @@ public class BatchProcessor implements Closeable {
         int failedCount = 0;
         int skippedCount = 0;
 
-        for (int i = 0; i < rows.size(); i++) {
-            var row = new Row(i + 1L, headers, rows.get(i));
+        long rowNumber = 1;
+        while (rows.hasNext()) {
+            var row = new Row(rowNumber++, headers, rows.next());
             Result result;
 
             try {
@@ -214,6 +237,28 @@ public class BatchProcessor implements Closeable {
 
     @Override
     public void close() throws IOException {
-        printer.close();
+        IOException failure = null;
+        try {
+            printer.close();
+        }
+        catch (IOException e) {
+            failure = e;
+        }
+
+        try {
+            closeable.close();
+        }
+        catch (IOException e) {
+            if (failure == null) {
+                failure = e;
+            }
+            else {
+                failure.addSuppressed(e);
+            }
+        }
+
+        if (failure != null) {
+            throw failure;
+        }
     }
 }

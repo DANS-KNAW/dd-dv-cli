@@ -298,7 +298,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
 
     private int determineIndex(MetadataFieldSpec spec, String indexText, String columnName) {
         if (indexText == null) {
-            return spec.isMultiple() ? 1 : 0;
+            return 1;
         }
 
         if (!spec.isMultiple()) {
