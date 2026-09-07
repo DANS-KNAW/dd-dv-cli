@@ -15,6 +15,9 @@
  */
 package nl.knaw.dans.dvcli.command;
 
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVPrinter;
@@ -32,6 +35,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 public class BatchProcessor implements Closeable {
     private static final List<String> REPORT_COLUMNS = List.of("result", "message");
 
@@ -45,14 +49,11 @@ public class BatchProcessor implements Closeable {
         SKIPPED
     }
 
+    @Getter
+    @RequiredArgsConstructor
     public static class Result {
         private final Status status;
         private final String message;
-
-        private Result(Status status, String message) {
-            this.status = status;
-            this.message = message;
-        }
 
         public static Result ok(String message) {
             return new Result(Status.OK, message);
@@ -75,30 +76,15 @@ public class BatchProcessor implements Closeable {
         }
     }
 
+    @Getter
+    @RequiredArgsConstructor
     public static class Summary {
         private final int okCount;
         private final int failedCount;
         private final int skippedCount;
-
-        public Summary(int okCount, int failedCount, int skippedCount) {
-            this.okCount = okCount;
-            this.failedCount = failedCount;
-            this.skippedCount = skippedCount;
-        }
-
-        public int getOkCount() {
-            return okCount;
-        }
-
-        public int getFailedCount() {
-            return failedCount;
-        }
-
-        public int getSkippedCount() {
-            return skippedCount;
-        }
     }
 
+    @Getter
     public static class Row {
         private final long rowNumber;
         private final List<String> headers;
@@ -108,14 +94,6 @@ public class BatchProcessor implements Closeable {
             this.rowNumber = rowNumber;
             this.headers = List.copyOf(headers);
             this.values = Collections.unmodifiableMap(new LinkedHashMap<>(values));
-        }
-
-        public long getRowNumber() {
-            return rowNumber;
-        }
-
-        public List<String> getHeaders() {
-            return headers;
         }
 
         public boolean hasColumn(String name) {
@@ -152,6 +130,7 @@ public class BatchProcessor implements Closeable {
         this.printer = new CSVPrinter(writer, CSVFormat.DEFAULT.builder()
             .setHeader(reportHeaders.toArray(String[]::new))
             .get());
+        log.debug("Initialized batch processor with headers {}", this.headers);
     }
 
     public static BatchProcessor forCsv(Path inputFile, Writer writer) throws IOException {
@@ -164,6 +143,7 @@ public class BatchProcessor implements Closeable {
                 .get()
                 .parse(reader);
             var headers = parser.getHeaderNames();
+            log.info("Reading batch input from {}", inputFile);
             var records = parser.iterator();
             var rows = new Iterator<Map<String, String>>() {
                 @Override
@@ -207,12 +187,14 @@ public class BatchProcessor implements Closeable {
         long rowNumber = 1;
         while (rows.hasNext()) {
             var row = new Row(rowNumber++, headers, rows.next());
+            log.debug("Processing batch row {}", row.getRowNumber());
             Result result;
 
             try {
                 result = handler.handle(row);
             }
             catch (Exception e) {
+                log.warn("Batch row {} failed: {}", row.getRowNumber(), e.getMessage());
                 result = Result.failed(e.getMessage());
             }
 
@@ -230,6 +212,7 @@ public class BatchProcessor implements Closeable {
             output.add(result.getMessage());
             printer.printRecord(output);
             printer.flush();
+            log.debug("Finished batch row {} with status {}", row.getRowNumber(), result.getStatus());
         }
 
         return new Summary(okCount, failedCount, skippedCount);

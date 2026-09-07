@@ -17,6 +17,8 @@ package nl.knaw.dans.dvcli.command;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import nl.knaw.dans.lib.dataverse.DatasetApi;
 import nl.knaw.dans.lib.dataverse.DataverseClient;
@@ -124,6 +126,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
             }
 
             var defaultFieldValues = parseAssignments(fieldAssignments);
+            log.info("Starting dataset-edit-metadata in {} mode", inputFile != null ? "batch" : "single-row");
             if (inputFile == null && defaultFieldValues.isEmpty()) {
                 System.err.println("At least one metadata field assignment is required");
                 return 1;
@@ -141,6 +144,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
             }
         }
         catch (Exception e) {
+            log.error("Error editing dataset metadata", e);
             System.err.println("Error editing dataset metadata: " + e.getMessage());
             return 1;
         }
@@ -153,18 +157,21 @@ public class DatasetEditMetadata implements Callable<Integer> {
             return BatchProcessor.Result.failed("Missing datasetId");
         }
 
+        log.info("Processing metadata edit for dataset {}", id);
         var datasetApi = getDatasetApi(id);
         var latestVersion = datasetApi.getVersion(Version.LATEST.toString()).getData();
 
         var actualState = latestVersion.getVersionState();
         var expectedStateMatcher = ExpectedState.parse(trimToNull(effectiveValues.get(EXPECTED_STATE)));
         if (!expectedStateMatcher.matches(actualState)) {
+            log.info("Skipping dataset {} because state {} does not match expected {}", id, actualState, expectedStateMatcher.describe());
             return BatchProcessor.Result.skipped(String.format("Expected state %s but found %s", expectedStateMatcher.describe(), actualState));
         }
 
         var reviewExpectation = ReviewExpectation.parse(trimToNull(effectiveValues.get(EXPECT_IN_REVIEW)));
         var inReview = isInReview(datasetApi.getLocks().getData());
         if (!reviewExpectation.matches(inReview)) {
+            log.info("Skipping dataset {} because in-review={} does not match expected {}", id, inReview, reviewExpectation.describe());
             return BatchProcessor.Result.skipped(String.format("Expected in review %s but found %s", reviewExpectation.describe(), inReview ? "yes" : "no"));
         }
 
@@ -175,14 +182,17 @@ public class DatasetEditMetadata implements Callable<Integer> {
 
         var fieldList = toFieldList(editableValues, fieldSpecs);
         var replaceExistingValues = parseBoolean(trimToNull(effectiveValues.get(REPLACE)), false, REPLACE);
+        log.debug("Editing {} metadata fields for dataset {} with replace={}", fieldList.getFields().size(), id, replaceExistingValues);
         datasetApi.editMetadata(fieldList, replaceExistingValues);
 
         var publicationMode = PublishVersion.parse(trimToNull(effectiveValues.get(PUBLISH_VERSION)));
         if (publicationMode != PublishVersion.LEAVE_DRAFT) {
+            log.info("Publishing dataset {} as {}", id, publicationMode);
             datasetApi.publish(publicationMode.toUpdateType(), false);
             datasetApi.awaitState("RELEASED", Duration.ofMinutes(timeoutInMinutes).toMillis(), PUBLISH_POLL_INTERVAL_MS);
         }
 
+        log.info("Finished metadata edit for dataset {}", id);
         return BatchProcessor.Result.ok("Metadata edited");
     }
 
@@ -356,6 +366,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         Map<String, MetadataFieldSpec> getFieldSpecs() throws Exception;
     }
 
+    @RequiredArgsConstructor
     static class DataverseMetadataFieldSpecProvider implements MetadataFieldSpecProvider {
         private final URI baseUrl;
         private final String apiToken;
@@ -363,19 +374,14 @@ public class DatasetEditMetadata implements Callable<Integer> {
         private final ObjectMapper objectMapper;
         private Map<String, MetadataFieldSpec> cachedFieldSpecs;
 
-        DataverseMetadataFieldSpecProvider(URI baseUrl, String apiToken, HttpClient httpClient, ObjectMapper objectMapper) {
-            this.baseUrl = baseUrl;
-            this.apiToken = apiToken;
-            this.httpClient = httpClient;
-            this.objectMapper = objectMapper;
-        }
-
         @Override
         public Map<String, MetadataFieldSpec> getFieldSpecs() throws Exception {
             if (cachedFieldSpecs != null) {
+                log.debug("Using cached metadata field definitions");
                 return cachedFieldSpecs;
             }
 
+            log.info("Loading metadata field definitions from {}", baseUrl);
             var requestBuilder = HttpRequest.newBuilder(baseUrl.resolve("api/metadatablocks?returnDatasetFieldTypes=true"))
                 .GET();
             if (apiToken != null) {
@@ -401,6 +407,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
                 }
             }
             cachedFieldSpecs = Collections.unmodifiableMap(specs);
+            log.info("Loaded {} metadata field definitions", cachedFieldSpecs.size());
             return cachedFieldSpecs;
         }
 
@@ -433,6 +440,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         }
     }
 
+    @Getter
     static class MetadataFieldSpec {
         private final String typeName;
         private final String typeClass;
@@ -447,36 +455,13 @@ public class DatasetEditMetadata implements Callable<Integer> {
             this.childFields = Collections.unmodifiableMap(new LinkedHashMap<>(childFields));
             this.controlledVocabularyValues = Collections.unmodifiableSet(new LinkedHashSet<>(controlledVocabularyValues));
         }
-
-        public String getTypeName() {
-            return typeName;
-        }
-
-        public String getTypeClass() {
-            return typeClass;
-        }
-
-        public boolean isMultiple() {
-            return multiple;
-        }
-
-        public Map<String, MetadataFieldSpec> getChildFields() {
-            return childFields;
-        }
-
-        public Set<String> getControlledVocabularyValues() {
-            return controlledVocabularyValues;
-        }
     }
 
+    @RequiredArgsConstructor
     static class FieldValueAccumulator {
         private final MetadataFieldSpec fieldSpec;
         private final Map<Integer, String> simpleValues = new TreeMap<>();
         private final Map<Integer, Map<String, String>> compoundValues = new TreeMap<>();
-
-        FieldValueAccumulator(MetadataFieldSpec fieldSpec) {
-            this.fieldSpec = fieldSpec;
-        }
 
         void addValue(int index, String value, String columnName) {
             if ("compound".equals(fieldSpec.getTypeClass())) {
