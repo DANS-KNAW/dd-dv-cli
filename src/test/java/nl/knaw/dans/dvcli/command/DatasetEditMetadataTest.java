@@ -15,9 +15,11 @@
  */
 package nl.knaw.dans.dvcli.command;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import nl.knaw.dans.lib.dataverse.DatasetApi;
 import nl.knaw.dans.lib.dataverse.DataverseClient;
 import nl.knaw.dans.lib.dataverse.DataverseHttpResponse;
+import nl.knaw.dans.lib.dataverse.MetadataBlocksApi;
 import nl.knaw.dans.lib.dataverse.Version;
 import nl.knaw.dans.lib.dataverse.model.DataMessage;
 import nl.knaw.dans.lib.dataverse.model.Lock;
@@ -282,6 +284,72 @@ public class DatasetEditMetadataTest {
         assertThat(result.exitCode()).isEqualTo(1);
         assertThat(result.stdout()).contains("FAILED");
         Mockito.verify(datasetApi, Mockito.never()).editMetadata(Mockito.any(FieldList.class), Mockito.anyBoolean());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void dataverse_metadata_field_spec_provider_loads_and_parses_specs() throws Exception {
+        var metadataBlocksApi = Mockito.mock(MetadataBlocksApi.class);
+        var response = Mockito.mock(DataverseHttpResponse.class);
+        var mapper = new ObjectMapper();
+        var json = mapper.readTree("""
+            {
+              "status": "OK",
+              "data": [
+                {
+                  "name": "citation",
+                  "fields": {
+                    "title": {
+                      "name": "title",
+                      "typeClass": "primitive",
+                      "multiple": false
+                    },
+                    "subject": {
+                      "name": "subject",
+                      "typeClass": "controlledVocabulary",
+                      "multiple": true,
+                      "controlledVocabularyValues": ["Chemistry", "Computer and Information Science"]
+                    },
+                    "author": {
+                      "name": "author",
+                      "typeClass": "compound",
+                      "multiple": true,
+                      "childFields": {
+                        "authorName": {
+                          "name": "authorName",
+                          "typeClass": "primitive",
+                          "multiple": false
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+            """);
+
+        Mockito.when(metadataBlocksApi.listMetadataBlocks(false, true)).thenReturn(response);
+        Mockito.when(response.getEnvelopeAsJson()).thenReturn(json);
+
+        var provider = new DatasetEditMetadata.DataverseMetadataFieldSpecProvider(metadataBlocksApi);
+        var specs = provider.getFieldSpecs();
+
+        assertThat(specs).containsKeys("title", "subject", "author");
+        assertThat(specs.get("title").getTypeClass()).isEqualTo("primitive");
+        assertThat(specs.get("title").isMultiple()).isFalse();
+
+        assertThat(specs.get("subject").getTypeClass()).isEqualTo("controlledVocabulary");
+        assertThat(specs.get("subject").isMultiple()).isTrue();
+        assertThat(specs.get("subject").getControlledVocabularyValues()).containsExactly("Chemistry", "Computer and Information Science");
+
+        assertThat(specs.get("author").getTypeClass()).isEqualTo("compound");
+        assertThat(specs.get("author").isMultiple()).isTrue();
+        assertThat(specs.get("author").getChildFields()).containsKey("authorName");
+        assertThat(specs.get("author").getChildFields().get("authorName").getTypeClass()).isEqualTo("primitive");
+
+        var specs2 = provider.getFieldSpecs();
+        assertThat(specs2).isSameAs(specs);
+        Mockito.verify(metadataBlocksApi, Mockito.times(1)).listMetadataBlocks(false, true);
     }
 
     private static Map<String, DatasetEditMetadata.MetadataFieldSpec> createFieldSpecs() {

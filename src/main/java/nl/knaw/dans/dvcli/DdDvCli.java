@@ -103,8 +103,6 @@ public class DdDvCli extends nl.knaw.dans.lib.util.AbstractCommandLineApp<DdDvCl
         commandLine.addSubcommand(new DatasetDirectUpload(dataverseClient, config.getExternalBaseUrl(), config.getApi().getApiKey()));
         commandLine.addSubcommand(new DatasetEditMetadata(
             dataverseClient,
-            config.getApi().getBaseUrl(),
-            config.getApi().getApiKey(),
             config.getEditMetadata() != null ? config.getEditMetadata().getReportsDir() : null
         ));
         commandLine.addSubcommand(new StorageDriversList(dataverseClient.admin()));

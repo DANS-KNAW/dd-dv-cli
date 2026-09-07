@@ -16,12 +16,12 @@
 package nl.knaw.dans.dvcli.command;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import nl.knaw.dans.lib.dataverse.DatasetApi;
 import nl.knaw.dans.lib.dataverse.DataverseClient;
+import nl.knaw.dans.lib.dataverse.MetadataBlocksApi;
 import nl.knaw.dans.lib.dataverse.Version;
 import nl.knaw.dans.lib.dataverse.model.Lock;
 import nl.knaw.dans.lib.dataverse.model.dataset.CompoundMultiValueField;
@@ -42,10 +42,6 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.Writer;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -117,8 +113,8 @@ public class DatasetEditMetadata implements Callable<Integer> {
     private final MetadataFieldSpecProvider metadataFieldSpecProvider;
     private final Path defaultReportsDir;
 
-    public DatasetEditMetadata(DataverseClient dataverseClient, URI baseUrl, String apiToken, Path defaultReportsDir) {
-        this(dataverseClient, new DataverseMetadataFieldSpecProvider(baseUrl, apiToken, HttpClient.newHttpClient(), new ObjectMapper()), defaultReportsDir);
+    public DatasetEditMetadata(DataverseClient dataverseClient, Path defaultReportsDir) {
+        this(dataverseClient, new DataverseMetadataFieldSpecProvider(dataverseClient.metadataBlocks()), defaultReportsDir);
     }
 
     DatasetEditMetadata(DataverseClient dataverseClient, MetadataFieldSpecProvider metadataFieldSpecProvider, Path defaultReportsDir) {
@@ -402,10 +398,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
 
     @RequiredArgsConstructor
     static class DataverseMetadataFieldSpecProvider implements MetadataFieldSpecProvider {
-        private final URI baseUrl;
-        private final String apiToken;
-        private final HttpClient httpClient;
-        private final ObjectMapper objectMapper;
+        private final MetadataBlocksApi metadataBlocksApi;
         private Map<String, MetadataFieldSpec> cachedFieldSpecs;
 
         @Override
@@ -415,19 +408,9 @@ public class DatasetEditMetadata implements Callable<Integer> {
                 return cachedFieldSpecs;
             }
 
-            log.info("Loading metadata field definitions from {}", baseUrl);
-            var requestBuilder = HttpRequest.newBuilder(baseUrl.resolve("api/metadatablocks?returnDatasetFieldTypes=true"))
-                .GET();
-            if (apiToken != null) {
-                requestBuilder.header("X-Dataverse-key", apiToken);
-            }
-
-            var response = httpClient.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IOException("Failed to load metadata field definitions: HTTP " + response.statusCode());
-            }
-
-            var root = objectMapper.readTree(response.body());
+            log.info("Loading metadata field definitions");
+            var response = metadataBlocksApi.listMetadataBlocks(false, true);
+            var root = response.getEnvelopeAsJson();
             var specs = new LinkedHashMap<String, MetadataFieldSpec>();
             for (JsonNode blockNode : root.path("data")) {
                 var fieldsNode = blockNode.path("fields");
