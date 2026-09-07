@@ -40,4 +40,7 @@ public class DdDvCliConfig extends Configuration {
 
   @Valid
   private ArchivalCopyConfig archivalCopy;
+
+  @Valid
+  private EditMetadataConfig editMetadata;
 }

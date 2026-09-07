@@ -37,6 +37,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -60,7 +61,7 @@ public class DatasetEditMetadataTest {
         Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(mockDatasetVersionResponse());
 
         var exitCode = executeWithCapturedStdout(
-            new CommandLine(new DatasetEditMetadata(dataverseClient, () -> fieldSpecs)),
+            new CommandLine(new DatasetEditMetadata(dataverseClient, () -> fieldSpecs, null)),
             "--datasetId", "doi:10.5072/FK2/ABC",
             "title=New title",
             "subject=Chemistry",
@@ -94,7 +95,7 @@ public class DatasetEditMetadataTest {
         Mockito.when(datasetApi.getLocks()).thenReturn(lockResponse);
 
         var result = executeWithCapturedStdout(
-            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs)),
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
             "--datasetId", "doi:10.5072/FK2/ABC",
             "title=New title"
         );
@@ -121,16 +122,50 @@ public class DatasetEditMetadataTest {
         Mockito.when(datasetApi.getLocks()).thenReturn(lockResponse);
         Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(mockDatasetVersionResponse());
 
+        var reportsDir = tempDir.resolve("override-reports");
         var result = executeWithCapturedStdout(
-            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs)),
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--input-file", inputFile.toString(),
+            "--reports-dir", reportsDir.toString(),
+            "title=New title"
+        );
+
+        assertThat(result.exitCode()).isZero();
+        var reportFile = singleReportFileIn(reportsDir);
+        assertThat(reportFile.getFileName().toString()).startsWith("input-").endsWith(".csv");
+        assertThat(Files.readString(reportFile)).contains("datasetId,result,message")
+            .contains("doi:10.5072/FK2/ABC,OK,Metadata edited");
+        Mockito.verify(datasetApi).editMetadata(Mockito.any(FieldList.class), Mockito.eq(false));
+    }
+
+    @Test
+    void dataset_edit_metadata_uses_default_reports_dir_for_batch_rows() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var datasetApi = Mockito.mock(DatasetApi.class);
+        var reportsDir = tempDir.resolve("default-reports");
+        var inputFile = tempDir.resolve("batch-input.csv");
+        var latestVersionResponse = mockLatestVersionResponse("RELEASED");
+        var lockResponse = mockLockResponse(List.of());
+        Files.writeString(inputFile, """
+            datasetId
+            doi:10.5072/FK2/ABC
+            """);
+
+        Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
+        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(latestVersionResponse);
+        Mockito.when(datasetApi.getLocks()).thenReturn(lockResponse);
+        Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(mockDatasetVersionResponse());
+
+        var result = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, reportsDir)),
             "--input-file", inputFile.toString(),
             "title=New title"
         );
 
         assertThat(result.exitCode()).isZero();
-        assertThat(result.stdout()).contains("datasetId,result,message")
-            .contains("doi:10.5072/FK2/ABC,OK,Metadata edited");
-        Mockito.verify(datasetApi).editMetadata(Mockito.any(FieldList.class), Mockito.eq(false));
+        var reportFile = singleReportFileIn(reportsDir);
+        assertThat(reportFile.getFileName().toString()).startsWith("batch-input-").endsWith(".csv");
+        assertThat(Files.readString(reportFile)).contains("doi:10.5072/FK2/ABC,OK,Metadata edited");
     }
 
     @Test
@@ -147,7 +182,7 @@ public class DatasetEditMetadataTest {
         Mockito.when(datasetApi.publish(UpdateType.minor, false)).thenReturn(mockDataMessageResponse());
 
         var exitCode = executeWithCapturedStdout(
-            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs)),
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
             "--datasetId", "doi:10.5072/FK2/ABC",
             "--publishVersion", "minor",
             "title=New title"
@@ -172,7 +207,7 @@ public class DatasetEditMetadataTest {
         Mockito.when(datasetApi.publish(UpdateType.major, false)).thenReturn(mockDataMessageResponse());
 
         var exitCode = executeWithCapturedStdout(
-            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs)),
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
             "--datasetId", "doi:10.5072/FK2/ABC",
             "--publishVersion", "major",
             "title=New title"
@@ -196,7 +231,7 @@ public class DatasetEditMetadataTest {
         Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(mockDatasetVersionResponse());
 
         var exitCode = executeWithCapturedStdout(
-            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs)),
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
             "--datasetId", "doi:10.5072/FK2/ABC",
             "--publishVersion", "leave-draft",
             "title=New title"
@@ -218,7 +253,7 @@ public class DatasetEditMetadataTest {
             """);
 
         var result = executeWithCapturedStdout(
-            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs)),
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
             "--input-file", inputFile.toString(),
             "title=New title"
         );
@@ -239,7 +274,7 @@ public class DatasetEditMetadataTest {
         Mockito.when(datasetApi.getLocks()).thenReturn(lockResponse);
 
         var result = executeWithCapturedStdout(
-            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs)),
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
             "--datasetId", "doi:10.5072/FK2/ABC",
             "subject=Biology"
         );
@@ -290,6 +325,14 @@ public class DatasetEditMetadataTest {
     @SuppressWarnings("unchecked")
     private static DataverseHttpResponse<DataMessage> mockDataMessageResponse() {
         return Mockito.mock(DataverseHttpResponse.class);
+    }
+
+    private Path singleReportFileIn(Path reportsDir) throws Exception {
+        try (var files = Files.list(reportsDir)) {
+            return files.sorted(Comparator.naturalOrder())
+                .findFirst()
+                .orElseThrow();
+        }
     }
 
     private CapturedExecution executeWithCapturedStdout(CommandLine commandLine, String... args) {

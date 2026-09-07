@@ -41,13 +41,17 @@ import picocli.CommandLine.Parameters;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.io.Writer;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -80,6 +84,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
     private static final Set<String> RESERVED_REPORT_COLUMNS = Set.of(RESULT, MESSAGE);
     private static final Pattern FIELD_PATTERN = Pattern.compile("^([^\\.\\[]+)(?:\\[(\\d+)])?(?:\\.(.+))?$");
     private static final long PUBLISH_POLL_INTERVAL_MS = 5000L;
+    private static final DateTimeFormatter REPORT_TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmmss");
 
     @Option(names = { "-i", "--input-file" }, description = "Input CSV file")
     private Path inputFile;
@@ -102,19 +107,24 @@ public class DatasetEditMetadata implements Callable<Integer> {
     @Option(names = { "--timeout" }, defaultValue = "10", description = "Timeout in minutes for publication")
     private long timeoutInMinutes;
 
+    @Option(names = { "--reports-dir" }, description = "Directory for batch reports")
+    private Path reportsDir;
+
     @Parameters(arity = "0..*", paramLabel = "FIELD=VALUE", description = "Metadata field assignment defaults")
     private List<String> fieldAssignments = new ArrayList<>();
 
     private final DataverseClient dataverseClient;
     private final MetadataFieldSpecProvider metadataFieldSpecProvider;
+    private final Path defaultReportsDir;
 
-    public DatasetEditMetadata(DataverseClient dataverseClient, URI baseUrl, String apiToken) {
-        this(dataverseClient, new DataverseMetadataFieldSpecProvider(baseUrl, apiToken, HttpClient.newHttpClient(), new ObjectMapper()));
+    public DatasetEditMetadata(DataverseClient dataverseClient, URI baseUrl, String apiToken, Path defaultReportsDir) {
+        this(dataverseClient, new DataverseMetadataFieldSpecProvider(baseUrl, apiToken, HttpClient.newHttpClient(), new ObjectMapper()), defaultReportsDir);
     }
 
-    DatasetEditMetadata(DataverseClient dataverseClient, MetadataFieldSpecProvider metadataFieldSpecProvider) {
+    DatasetEditMetadata(DataverseClient dataverseClient, MetadataFieldSpecProvider metadataFieldSpecProvider, Path defaultReportsDir) {
         this.dataverseClient = dataverseClient;
         this.metadataFieldSpecProvider = metadataFieldSpecProvider;
+        this.defaultReportsDir = defaultReportsDir;
     }
 
     @Override
@@ -133,10 +143,10 @@ public class DatasetEditMetadata implements Callable<Integer> {
             }
 
             var fieldSpecs = metadataFieldSpecProvider.getFieldSpecs();
-            try (var out = new PrintWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8), true);
+            try (var writer = createReportWriter();
                 var batchProcessor = inputFile != null
-                    ? BatchProcessor.forCsv(inputFile, out)
-                    : BatchProcessor.forSingleRow(createSingleRow(defaultFieldValues), out)) {
+                    ? BatchProcessor.forCsv(inputFile, writer)
+                    : BatchProcessor.forSingleRow(createSingleRow(defaultFieldValues), writer)) {
 
                 var summary = batchProcessor.process(row -> processRow(row, defaultFieldValues, fieldSpecs));
                 log.info("Finished: {} ok, {} failed, {} skipped", summary.getOkCount(), summary.getFailedCount(), summary.getSkippedCount());
@@ -148,6 +158,30 @@ public class DatasetEditMetadata implements Callable<Integer> {
             System.err.println("Error editing dataset metadata: " + e.getMessage());
             return 1;
         }
+    }
+
+    private Writer createReportWriter() throws IOException {
+        if (inputFile == null) {
+            return new PrintWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8), true);
+        }
+
+        var effectiveReportsDir = reportsDir != null ? reportsDir : defaultReportsDir;
+        if (effectiveReportsDir == null) {
+            log.info("No reports directory configured; writing batch report to stdout");
+            return new PrintWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8), true);
+        }
+
+        Files.createDirectories(effectiveReportsDir);
+        var reportFile = effectiveReportsDir.resolve(createReportFileName(inputFile));
+        log.info("Writing batch report to {}", reportFile);
+        return Files.newBufferedWriter(reportFile, StandardCharsets.UTF_8);
+    }
+
+    private String createReportFileName(Path csvInputFile) {
+        var fileName = csvInputFile.getFileName().toString();
+        var dotIndex = fileName.lastIndexOf('.');
+        var basename = dotIndex > 0 ? fileName.substring(0, dotIndex) : fileName;
+        return basename + "-" + LocalDateTime.now().format(REPORT_TIMESTAMP_FORMAT) + ".csv";
     }
 
     private BatchProcessor.Result processRow(BatchProcessor.Row row, Map<String, String> defaultFieldValues, Map<String, MetadataFieldSpec> fieldSpecs) throws Exception {
