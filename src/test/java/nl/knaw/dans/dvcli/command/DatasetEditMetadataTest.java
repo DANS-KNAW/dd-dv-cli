@@ -159,6 +159,25 @@ public class DatasetEditMetadataTest {
     }
 
     @Test
+    void dataset_edit_metadata_rejects_reserved_report_columns_in_input() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var inputFile = tempDir.resolve("input.csv");
+        Files.writeString(inputFile, """
+            datasetId,result
+            doi:10.5072/FK2/ABC,ignored
+            """);
+
+        var result = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs)),
+            "--input-file", inputFile.toString(),
+            "title=New title"
+        );
+
+        assertThat(result.exitCode()).isEqualTo(1);
+        assertThat(result.stderr()).contains("Input contains reserved column: result");
+    }
+
+    @Test
     void dataset_edit_metadata_fails_for_invalid_controlled_vocabulary_value() throws Exception {
         var dataverseClient = Mockito.mock(DataverseClient.class);
         var datasetApi = Mockito.mock(DatasetApi.class);
@@ -227,17 +246,21 @@ public class DatasetEditMetadataTest {
 
     private CapturedExecution executeWithCapturedStdout(CommandLine commandLine, String... args) {
         var originalOut = System.out;
+        var originalErr = System.err;
         var out = new ByteArrayOutputStream();
+        var err = new ByteArrayOutputStream();
         try {
             System.setOut(new PrintStream(out, true));
+            System.setErr(new PrintStream(err, true));
             var exitCode = commandLine.execute(args);
-            return new CapturedExecution(exitCode, out.toString());
+            return new CapturedExecution(exitCode, out.toString(), err.toString());
         }
         finally {
             System.setOut(originalOut);
+            System.setErr(originalErr);
         }
     }
 
-    private record CapturedExecution(int exitCode, String stdout) {
+    private record CapturedExecution(int exitCode, String stdout, String stderr) {
     }
 }

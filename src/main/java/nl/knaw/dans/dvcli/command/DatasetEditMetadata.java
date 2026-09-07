@@ -297,7 +297,11 @@ public class DatasetEditMetadata implements Callable<Integer> {
         if (!spec.isMultiple()) {
             throw new IllegalArgumentException("Field does not allow indexed values: " + columnName);
         }
-        return Integer.parseInt(indexText);
+        int index = Integer.parseInt(indexText);
+        if (index < 1) {
+            throw new IllegalArgumentException("Field indexes must start at 1: " + columnName);
+        }
+        return index;
     }
 
     private boolean isInReview(List<Lock> locks) {

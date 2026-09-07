@@ -32,6 +32,8 @@ import java.util.List;
 import java.util.Map;
 
 public class BatchProcessor implements Closeable {
+    private static final List<String> REPORT_COLUMNS = List.of("result", "message");
+
     public interface RowHandler {
         Result handle(Row row) throws Exception;
     }
@@ -133,12 +135,17 @@ public class BatchProcessor implements Closeable {
     private final List<Map<String, String>> rows;
 
     private BatchProcessor(List<String> headers, List<Map<String, String>> rows, Writer writer) throws IOException {
+        for (String reportColumn : REPORT_COLUMNS) {
+            if (headers.contains(reportColumn)) {
+                throw new IllegalArgumentException("Input contains reserved column: " + reportColumn);
+            }
+        }
+
         this.headers = List.copyOf(headers);
         this.rows = List.copyOf(rows);
 
         var reportHeaders = new ArrayList<>(headers);
-        reportHeaders.add("result");
-        reportHeaders.add("message");
+        reportHeaders.addAll(REPORT_COLUMNS);
         this.printer = new CSVPrinter(writer, CSVFormat.DEFAULT.builder()
             .setHeader(reportHeaders.toArray(String[]::new))
             .get());
