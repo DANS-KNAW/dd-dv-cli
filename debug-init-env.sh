@@ -18,4 +18,5 @@
 echo -n "Pre-creating log..."
 TEMPDIR=data
 touch $TEMPDIR/dd-dv-cli.log
+mkdir $TEMPDIR/bulk-change-reports
 echo "OK"
