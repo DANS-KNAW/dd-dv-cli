@@ -513,7 +513,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
                 if (simpleValues.size() > 1) {
                     throw new IllegalArgumentException("Field does not allow multiple values: " + fieldSpec.getTypeName());
                 }
-                return createSingleValueField(fieldSpec, simpleValues.values().iterator().next());
+                return (MetadataField) createSingleValueField(fieldSpec, simpleValues.values().iterator().next());
             }
 
             var values = new ArrayList<String>();

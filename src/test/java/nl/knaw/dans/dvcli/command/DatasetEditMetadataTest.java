@@ -18,6 +18,7 @@ package nl.knaw.dans.dvcli.command;
 import nl.knaw.dans.lib.dataverse.DatasetApi;
 import nl.knaw.dans.lib.dataverse.DataverseClient;
 import nl.knaw.dans.lib.dataverse.DataverseHttpResponse;
+import nl.knaw.dans.lib.dataverse.model.DataMessage;
 import nl.knaw.dans.lib.dataverse.model.Lock;
 import nl.knaw.dans.lib.dataverse.model.dataset.CompoundMultiValueField;
 import nl.knaw.dans.lib.dataverse.model.dataset.ControlledMultiValueField;
@@ -50,10 +51,12 @@ public class DatasetEditMetadataTest {
         var dataverseClient = Mockito.mock(DataverseClient.class);
         var datasetApi = Mockito.mock(DatasetApi.class);
         var fieldSpecs = createFieldSpecs();
+        var latestVersionResponse = mockLatestVersionResponse("RELEASED");
+        var lockResponse = mockLockResponse(List.of());
 
         Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
-        Mockito.when(datasetApi.getLatestVersion()).thenReturn(mockLatestVersionResponse("RELEASED"));
-        Mockito.when(datasetApi.getLocks()).thenReturn(mockLockResponse(List.of()));
+        Mockito.when(datasetApi.getLatestVersion()).thenReturn(latestVersionResponse);
+        Mockito.when(datasetApi.getLocks()).thenReturn(lockResponse);
         Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(mockDatasetVersionResponse());
 
         var exitCode = executeWithCapturedStdout(
@@ -83,10 +86,12 @@ public class DatasetEditMetadataTest {
     void dataset_edit_metadata_skips_when_default_expected_state_does_not_match() throws Exception {
         var dataverseClient = Mockito.mock(DataverseClient.class);
         var datasetApi = Mockito.mock(DatasetApi.class);
+        var latestVersionResponse = mockLatestVersionResponse("DRAFT");
+        var lockResponse = mockLockResponse(List.of());
 
         Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
-        Mockito.when(datasetApi.getLatestVersion()).thenReturn(mockLatestVersionResponse("DRAFT"));
-        Mockito.when(datasetApi.getLocks()).thenReturn(mockLockResponse(List.of()));
+        Mockito.when(datasetApi.getLatestVersion()).thenReturn(latestVersionResponse);
+        Mockito.when(datasetApi.getLocks()).thenReturn(lockResponse);
 
         var result = executeWithCapturedStdout(
             new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs)),
@@ -104,14 +109,16 @@ public class DatasetEditMetadataTest {
         var dataverseClient = Mockito.mock(DataverseClient.class);
         var datasetApi = Mockito.mock(DatasetApi.class);
         var inputFile = tempDir.resolve("input.csv");
+        var latestVersionResponse = mockLatestVersionResponse("RELEASED");
+        var lockResponse = mockLockResponse(List.of());
         Files.writeString(inputFile, """
             datasetId
             doi:10.5072/FK2/ABC
             """);
 
         Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
-        Mockito.when(datasetApi.getLatestVersion()).thenReturn(mockLatestVersionResponse("RELEASED"));
-        Mockito.when(datasetApi.getLocks()).thenReturn(mockLockResponse(List.of()));
+        Mockito.when(datasetApi.getLatestVersion()).thenReturn(latestVersionResponse);
+        Mockito.when(datasetApi.getLocks()).thenReturn(lockResponse);
         Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(mockDatasetVersionResponse());
 
         var result = executeWithCapturedStdout(
@@ -130,12 +137,14 @@ public class DatasetEditMetadataTest {
     void dataset_edit_metadata_publishes_when_requested() throws Exception {
         var dataverseClient = Mockito.mock(DataverseClient.class);
         var datasetApi = Mockito.mock(DatasetApi.class);
+        var latestVersionResponse = mockLatestVersionResponse("RELEASED");
+        var lockResponse = mockLockResponse(List.of());
 
         Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
-        Mockito.when(datasetApi.getLatestVersion()).thenReturn(mockLatestVersionResponse("RELEASED"));
-        Mockito.when(datasetApi.getLocks()).thenReturn(mockLockResponse(List.of()));
+        Mockito.when(datasetApi.getLatestVersion()).thenReturn(latestVersionResponse);
+        Mockito.when(datasetApi.getLocks()).thenReturn(lockResponse);
         Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(mockDatasetVersionResponse());
-        Mockito.when(datasetApi.publish(UpdateType.minor, false)).thenReturn(mockDatasetVersionResponse());
+        Mockito.when(datasetApi.publish(UpdateType.minor, false)).thenReturn(mockDataMessageResponse());
 
         var exitCode = executeWithCapturedStdout(
             new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs)),
@@ -153,10 +162,12 @@ public class DatasetEditMetadataTest {
     void dataset_edit_metadata_fails_for_invalid_controlled_vocabulary_value() throws Exception {
         var dataverseClient = Mockito.mock(DataverseClient.class);
         var datasetApi = Mockito.mock(DatasetApi.class);
+        var latestVersionResponse = mockLatestVersionResponse("RELEASED");
+        var lockResponse = mockLockResponse(List.of());
 
         Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
-        Mockito.when(datasetApi.getLatestVersion()).thenReturn(mockLatestVersionResponse("RELEASED"));
-        Mockito.when(datasetApi.getLocks()).thenReturn(mockLockResponse(List.of()));
+        Mockito.when(datasetApi.getLatestVersion()).thenReturn(latestVersionResponse);
+        Mockito.when(datasetApi.getLocks()).thenReturn(lockResponse);
 
         var result = executeWithCapturedStdout(
             new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs)),
@@ -193,19 +204,24 @@ public class DatasetEditMetadataTest {
         latestVersion.setLatestVersion(version);
 
         var response = Mockito.mock(DataverseHttpResponse.class);
-        Mockito.when(response.getData()).thenReturn(latestVersion);
+        Mockito.doReturn(latestVersion).when(response).getData();
         return response;
     }
 
     @SuppressWarnings("unchecked")
     private static DataverseHttpResponse<List<Lock>> mockLockResponse(List<Lock> locks) throws Exception {
         var response = Mockito.mock(DataverseHttpResponse.class);
-        Mockito.when(response.getData()).thenReturn(locks);
+        Mockito.doReturn(locks).when(response).getData();
         return response;
     }
 
     @SuppressWarnings("unchecked")
     private static DataverseHttpResponse<DatasetVersion> mockDatasetVersionResponse() {
+        return Mockito.mock(DataverseHttpResponse.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static DataverseHttpResponse<DataMessage> mockDataMessageResponse() {
         return Mockito.mock(DataverseHttpResponse.class);
     }
 
