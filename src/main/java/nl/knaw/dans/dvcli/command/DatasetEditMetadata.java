@@ -71,7 +71,10 @@ public class DatasetEditMetadata implements Callable<Integer> {
     private static final String EXPECT_IN_REVIEW = "expectInReview";
     private static final String PUBLISH_VERSION = "publishVersion";
     private static final String REPLACE = "replace";
+    private static final String RESULT = "result";
+    private static final String MESSAGE = "message";
     private static final Set<String> RESERVED_COLUMNS = Set.of(DATASET_ID, EXPECTED_STATE, EXPECT_IN_REVIEW, PUBLISH_VERSION, REPLACE);
+    private static final Set<String> RESERVED_REPORT_COLUMNS = Set.of(RESULT, MESSAGE);
     private static final Pattern FIELD_PATTERN = Pattern.compile("^([^\\.\\[]+)(?:\\[(\\d+)])?(?:\\.(.+))?$");
     private static final long PUBLISH_POLL_INTERVAL_MS = 5000L;
 
@@ -235,7 +238,11 @@ public class DatasetEditMetadata implements Callable<Integer> {
             if (separator <= 0) {
                 throw new IllegalArgumentException("Invalid field assignment: " + assignment);
             }
-            parsed.put(assignment.substring(0, separator), assignment.substring(separator + 1));
+            String fieldName = assignment.substring(0, separator);
+            if (RESERVED_COLUMNS.contains(fieldName) || RESERVED_REPORT_COLUMNS.contains(fieldName)) {
+                throw new IllegalArgumentException("Reserved field name: " + fieldName);
+            }
+            parsed.put(fieldName, assignment.substring(separator + 1));
         }
         return parsed;
     }

@@ -159,6 +159,31 @@ public class DatasetEditMetadataTest {
     }
 
     @Test
+    void dataset_edit_metadata_leaves_draft_when_requested() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var datasetApi = Mockito.mock(DatasetApi.class);
+        var latestVersionResponse = mockLatestVersionResponse("RELEASED");
+        var lockResponse = mockLockResponse(List.of());
+
+        Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
+        Mockito.when(datasetApi.getLatestVersion()).thenReturn(latestVersionResponse);
+        Mockito.when(datasetApi.getLocks()).thenReturn(lockResponse);
+        Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(mockDatasetVersionResponse());
+
+        var exitCode = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs)),
+            "--datasetId", "doi:10.5072/FK2/ABC",
+            "--publishVersion", "leave-draft",
+            "title=New title"
+        ).exitCode();
+
+        assertThat(exitCode).isZero();
+        Mockito.verify(datasetApi).editMetadata(Mockito.any(FieldList.class), Mockito.eq(false));
+        Mockito.verify(datasetApi, Mockito.never()).publish(Mockito.any(), Mockito.anyBoolean());
+        Mockito.verify(datasetApi, Mockito.never()).awaitState(Mockito.anyString(), Mockito.anyLong(), Mockito.anyLong());
+    }
+
+    @Test
     void dataset_edit_metadata_rejects_reserved_report_columns_in_input() throws Exception {
         var dataverseClient = Mockito.mock(DataverseClient.class);
         var inputFile = tempDir.resolve("input.csv");

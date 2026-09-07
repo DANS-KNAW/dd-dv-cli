@@ -214,6 +214,6 @@ public class BatchProcessor implements Closeable {
 
     @Override
     public void close() throws IOException {
-        printer.flush();
+        printer.close();
     }
 }
