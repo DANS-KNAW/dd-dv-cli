@@ -20,6 +20,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import nl.knaw.dans.lib.dataverse.DatasetApi;
 import nl.knaw.dans.lib.dataverse.DataverseClient;
+import nl.knaw.dans.lib.dataverse.Version;
 import nl.knaw.dans.lib.dataverse.model.Lock;
 import nl.knaw.dans.lib.dataverse.model.dataset.CompoundMultiValueField;
 import nl.knaw.dans.lib.dataverse.model.dataset.CompoundSingleValueField;
@@ -153,10 +154,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         }
 
         var datasetApi = getDatasetApi(id);
-        var latestVersion = datasetApi.getLatestVersion().getData().getLatestVersion();
-        if (latestVersion == null || latestVersion.getVersionState() == null) {
-            return BatchProcessor.Result.failed("Could not determine latest version state");
-        }
+        var latestVersion = datasetApi.getVersion(Version.LATEST.toString()).getData();
 
         var actualState = latestVersion.getVersionState();
         var expectedStateMatcher = ExpectedState.parse(trimToNull(effectiveValues.get(EXPECTED_STATE)));
