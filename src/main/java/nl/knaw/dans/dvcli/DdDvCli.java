@@ -24,6 +24,7 @@ import nl.knaw.dans.dvcli.command.BannerList;
 import nl.knaw.dans.dvcli.command.DatasetArchiveVersion;
 import nl.knaw.dans.dvcli.command.DatasetDeleteStorageDriver;
 import nl.knaw.dans.dvcli.command.DatasetDirectUpload;
+import nl.knaw.dans.dvcli.command.DatasetEditMetadata;
 import nl.knaw.dans.dvcli.command.DatasetGetStorageDriver;
 import nl.knaw.dans.dvcli.command.DatasetLockAdd;
 import nl.knaw.dans.dvcli.command.DatasetLockDelete;
@@ -100,6 +101,7 @@ public class DdDvCli extends nl.knaw.dans.lib.util.AbstractCommandLineApp<DdDvCl
         commandLine.addSubcommand(new DatasetGetStorageDriver(dataverseClient));
         commandLine.addSubcommand(new DatasetSetStorageDriver(dataverseClient));
         commandLine.addSubcommand(new DatasetDirectUpload(dataverseClient, config.getExternalBaseUrl(), config.getApi().getApiKey()));
+        commandLine.addSubcommand(new DatasetEditMetadata(dataverseClient, config.getApi().getBaseUrl(), config.getApi().getApiKey()));
         commandLine.addSubcommand(new StorageDriversList(dataverseClient.admin()));
         commandLine.addSubcommand(new IndexStatus(dataverseClient.solrIndex()));
         commandLine.addSubcommand(new IndexClear(dataverseClient.solrIndex()));
