@@ -25,3 +25,7 @@ logging:
       archive: false
       timeZone: system
       currentLogFilename: ${HOME}/dv.log
+
+
+editMetadata:
+  reportsDir: /var/opt/dans.knaw.nl/tmp/bulk-change-reports
