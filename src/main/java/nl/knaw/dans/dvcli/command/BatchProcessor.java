@@ -66,14 +66,6 @@ public class BatchProcessor implements Closeable {
         public static Result skipped(String message) {
             return new Result(Status.SKIPPED, message);
         }
-
-        public Status getStatus() {
-            return status;
-        }
-
-        public String getMessage() {
-            return message;
-        }
     }
 
     @Getter
