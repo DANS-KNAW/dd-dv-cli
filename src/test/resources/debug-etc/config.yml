@@ -1,5 +1,5 @@
 api:
-  baseUrl: "http://dev.archaeology.datastatations.nl:8080"
+  baseUrl: "http://dev.archaeology.datastations.nl:8080"
   apiKey: "your-api-token"
   unblockKey: s3kretKey
   databaseUrl: "jdbc:postgresql://dev.archaeology.datastatations.nl:5432/dvndb"
@@ -27,3 +27,5 @@ logging:
       threshold: WARN
       logFormat: "%-5p [%d{ISO8601}] [%t] %c: %m%n%rEx"
 
+editMetadata:
+  reportsDir: data/bulk-change-reports

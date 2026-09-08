@@ -33,6 +33,7 @@ nav:
 extra:
   dataverse_api_url: https://guides.dataverse.org/en/latest/api/index.html
   dans_dataverse_client_lib_url: https://dans-knaw.github.io/dans-dataverse-client-lib/
+  edit_metadata_url: https://guides.dataverse.org/en/latest/api/native-api.html#edit-dataset-metadata
 
 plugins:
   - markdownextradata
