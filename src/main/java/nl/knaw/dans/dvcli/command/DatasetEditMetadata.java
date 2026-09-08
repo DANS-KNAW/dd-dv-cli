@@ -15,7 +15,6 @@
  */
 package nl.knaw.dans.dvcli.command;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +27,7 @@ import nl.knaw.dans.lib.dataverse.model.dataset.CompoundMultiValueField;
 import nl.knaw.dans.lib.dataverse.model.dataset.CompoundSingleValueField;
 import nl.knaw.dans.lib.dataverse.model.dataset.ControlledMultiValueField;
 import nl.knaw.dans.lib.dataverse.model.dataset.ControlledSingleValueField;
+import nl.knaw.dans.lib.dataverse.model.dataset.DatasetFieldType;
 import nl.knaw.dans.lib.dataverse.model.dataset.FieldList;
 import nl.knaw.dans.lib.dataverse.model.dataset.MetadataField;
 import nl.knaw.dans.lib.dataverse.model.dataset.PrimitiveMultiValueField;
@@ -180,7 +180,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         return basename + "-" + LocalDateTime.now().format(REPORT_TIMESTAMP_FORMAT) + ".csv";
     }
 
-    private BatchProcessor.Result processRow(BatchProcessor.Row row, Map<String, String> defaultFieldValues, Map<String, MetadataFieldSpec> fieldSpecs) throws Exception {
+    private BatchProcessor.Result processRow(BatchProcessor.Row row, Map<String, String> defaultFieldValues, Map<String, DatasetFieldType> fieldSpecs) throws Exception {
         var effectiveValues = applyDefaults(row, defaultFieldValues);
         var id = trimToNull(effectiveValues.get(DATASET_ID));
         if (id == null) {
@@ -295,7 +295,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         return values;
     }
 
-    private FieldList toFieldList(Map<String, String> editableValues, Map<String, MetadataFieldSpec> fieldSpecs) {
+    private FieldList toFieldList(Map<String, String> editableValues, Map<String, DatasetFieldType> fieldSpecs) {
         var accumulators = new LinkedHashMap<String, FieldValueAccumulator>();
 
         for (var entry : editableValues.entrySet()) {
@@ -334,7 +334,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         return fieldList;
     }
 
-    private int determineIndex(MetadataFieldSpec spec, String indexText, String columnName) {
+    private int determineIndex(DatasetFieldType spec, String indexText, String columnName) {
         if (indexText == null) {
             return 1;
         }
@@ -356,9 +356,10 @@ public class DatasetEditMetadata implements Callable<Integer> {
         return locks.stream()
             .map(Lock::getLockType)
             .filter(Objects::nonNull)
-            .anyMatch(lockType -> "InReview".equalsIgnoreCase(lockType));
+            .anyMatch("InReview"::equalsIgnoreCase);
     }
 
+    @SuppressWarnings("SameParameterValue")
     private boolean parseBoolean(String value, boolean defaultValue, String optionName) {
         if (value == null) {
             return defaultValue;
@@ -393,16 +394,16 @@ public class DatasetEditMetadata implements Callable<Integer> {
     }
 
     interface MetadataFieldSpecProvider {
-        Map<String, MetadataFieldSpec> getFieldSpecs() throws Exception;
+        Map<String, DatasetFieldType> getFieldSpecs() throws Exception;
     }
 
     @RequiredArgsConstructor
     static class DataverseMetadataFieldSpecProvider implements MetadataFieldSpecProvider {
         private final MetadataBlocksApi metadataBlocksApi;
-        private Map<String, MetadataFieldSpec> cachedFieldSpecs;
+        private Map<String, DatasetFieldType> cachedFieldSpecs;
 
         @Override
-        public Map<String, MetadataFieldSpec> getFieldSpecs() throws Exception {
+        public Map<String, DatasetFieldType> getFieldSpecs() throws Exception {
             if (cachedFieldSpecs != null) {
                 log.debug("Using cached metadata field definitions");
                 return cachedFieldSpecs;
@@ -410,73 +411,21 @@ public class DatasetEditMetadata implements Callable<Integer> {
 
             log.info("Loading metadata field definitions");
             var response = metadataBlocksApi.listMetadataBlocks(false, true);
-            var root = response.getEnvelopeAsJson();
-            var specs = new LinkedHashMap<String, MetadataFieldSpec>();
-            for (JsonNode blockNode : root.path("data")) {
-                var fieldsNode = blockNode.path("fields");
-                if (!fieldsNode.isObject()) {
-                    continue;
-                }
-                var iterator = fieldsNode.fields();
-                while (iterator.hasNext()) {
-                    var entry = iterator.next();
-                    specs.put(entry.getKey(), parseFieldSpec(entry.getKey(), entry.getValue()));
+            var specs = new LinkedHashMap<String, DatasetFieldType>();
+            for (var block : response.getData()) {
+                if (block.getFields() != null) {
+                    specs.putAll(block.getFields());
                 }
             }
             cachedFieldSpecs = Collections.unmodifiableMap(specs);
             log.info("Loaded {} metadata field definitions", cachedFieldSpecs.size());
             return cachedFieldSpecs;
         }
-
-        private MetadataFieldSpec parseFieldSpec(String fieldName, JsonNode node) {
-            var childFields = new LinkedHashMap<String, MetadataFieldSpec>();
-            var childFieldsNode = node.path("childFields");
-            if (childFieldsNode.isObject()) {
-                var childIterator = childFieldsNode.fields();
-                while (childIterator.hasNext()) {
-                    var child = childIterator.next();
-                    childFields.put(child.getKey(), parseFieldSpec(child.getKey(), child.getValue()));
-                }
-            }
-
-            var vocabularyValues = new LinkedHashSet<String>();
-            var vocabularyNode = node.path("controlledVocabularyValues");
-            if (vocabularyNode.isArray()) {
-                for (JsonNode valueNode : vocabularyNode) {
-                    vocabularyValues.add(valueNode.asText());
-                }
-            }
-
-            return new MetadataFieldSpec(
-                fieldName,
-                node.path("typeClass").asText(),
-                node.path("multiple").asBoolean(false),
-                childFields,
-                vocabularyValues
-            );
-        }
-    }
-
-    @Getter
-    static class MetadataFieldSpec {
-        private final String typeName;
-        private final String typeClass;
-        private final boolean multiple;
-        private final Map<String, MetadataFieldSpec> childFields;
-        private final Set<String> controlledVocabularyValues;
-
-        MetadataFieldSpec(String typeName, String typeClass, boolean multiple, Map<String, MetadataFieldSpec> childFields, Collection<String> controlledVocabularyValues) {
-            this.typeName = typeName;
-            this.typeClass = typeClass;
-            this.multiple = multiple;
-            this.childFields = Collections.unmodifiableMap(new LinkedHashMap<>(childFields));
-            this.controlledVocabularyValues = Collections.unmodifiableSet(new LinkedHashSet<>(controlledVocabularyValues));
-        }
     }
 
     @RequiredArgsConstructor
     static class FieldValueAccumulator {
-        private final MetadataFieldSpec fieldSpec;
+        private final DatasetFieldType fieldSpec;
         private final Map<Integer, String> simpleValues = new TreeMap<>();
         private final Map<Integer, Map<String, String>> compoundValues = new TreeMap<>();
 
@@ -494,9 +443,9 @@ public class DatasetEditMetadata implements Callable<Integer> {
                 throw new IllegalArgumentException("Subfield not allowed for " + columnName);
             }
 
-            var subfieldSpec = fieldSpec.getChildFields().get(subfieldName);
+            var subfieldSpec = fieldSpec.getChildFields() != null ? fieldSpec.getChildFields().get(subfieldName) : null;
             if (subfieldSpec == null) {
-                throw new IllegalArgumentException("Unknown subfield " + subfieldName + " for " + fieldSpec.getTypeName());
+                throw new IllegalArgumentException("Unknown subfield " + subfieldName + " for " + fieldSpec.getName());
             }
             if ("compound".equals(subfieldSpec.getTypeClass()) || subfieldSpec.isMultiple()) {
                 throw new IllegalArgumentException("Unsupported subfield shape for " + columnName);
@@ -517,12 +466,12 @@ public class DatasetEditMetadata implements Callable<Integer> {
 
         private MetadataField toSimpleField() {
             if (simpleValues.isEmpty()) {
-                throw new IllegalArgumentException("No value provided for " + fieldSpec.getTypeName());
+                throw new IllegalArgumentException("No value provided for " + fieldSpec.getName());
             }
 
             if (!fieldSpec.isMultiple()) {
                 if (simpleValues.size() > 1) {
-                    throw new IllegalArgumentException("Field does not allow multiple values: " + fieldSpec.getTypeName());
+                    throw new IllegalArgumentException("Field does not allow multiple values: " + fieldSpec.getName());
                 }
                 return (MetadataField) createSingleValueField(fieldSpec, simpleValues.values().iterator().next());
             }
@@ -534,56 +483,56 @@ public class DatasetEditMetadata implements Callable<Integer> {
             }
 
             return switch (fieldSpec.getTypeClass()) {
-                case "primitive" -> new PrimitiveMultiValueField(fieldSpec.getTypeName(), values);
-                case "controlledVocabulary" -> new ControlledMultiValueField(fieldSpec.getTypeName(), values);
-                default -> throw new IllegalArgumentException("Unsupported field typeClass for " + fieldSpec.getTypeName() + ": " + fieldSpec.getTypeClass());
+                case "primitive" -> new PrimitiveMultiValueField(fieldSpec.getName(), values);
+                case "controlledVocabulary" -> new ControlledMultiValueField(fieldSpec.getName(), values);
+                default -> throw new IllegalArgumentException("Unsupported field typeClass for " + fieldSpec.getName() + ": " + fieldSpec.getTypeClass());
             };
         }
 
         private MetadataField toCompoundField() {
             if (compoundValues.isEmpty()) {
-                throw new IllegalArgumentException("No value provided for " + fieldSpec.getTypeName());
+                throw new IllegalArgumentException("No value provided for " + fieldSpec.getName());
             }
 
             if (!fieldSpec.isMultiple()) {
                 if (compoundValues.size() > 1) {
-                    throw new IllegalArgumentException("Field does not allow multiple values: " + fieldSpec.getTypeName());
+                    throw new IllegalArgumentException("Field does not allow multiple values: " + fieldSpec.getName());
                 }
-                return new CompoundSingleValueField(fieldSpec.getTypeName(), createCompoundValue(compoundValues.values().iterator().next()));
+                return new CompoundSingleValueField(fieldSpec.getName(), createCompoundValue(compoundValues.values().iterator().next()));
             }
 
             var values = new ArrayList<Map<String, SingleValueField>>();
             for (Map<String, String> compoundValue : compoundValues.values()) {
                 values.add(createCompoundValue(compoundValue));
             }
-            return new CompoundMultiValueField(fieldSpec.getTypeName(), values);
+            return new CompoundMultiValueField(fieldSpec.getName(), values);
         }
 
         private Map<String, SingleValueField> createCompoundValue(Map<String, String> compoundValue) {
             var values = new LinkedHashMap<String, SingleValueField>();
             for (var entry : compoundValue.entrySet()) {
-                var subfieldSpec = fieldSpec.getChildFields().get(entry.getKey());
+                var subfieldSpec = fieldSpec.getChildFields() != null ? fieldSpec.getChildFields().get(entry.getKey()) : null;
                 values.put(entry.getKey(), createSingleValueField(subfieldSpec, entry.getValue()));
             }
             return values;
         }
 
-        private SingleValueField createSingleValueField(MetadataFieldSpec spec, String value) {
+        private SingleValueField createSingleValueField(DatasetFieldType spec, String value) {
             validateControlledVocabulary(spec, value);
 
             return switch (spec.getTypeClass()) {
-                case "primitive" -> new PrimitiveSingleValueField(spec.getTypeName(), value);
-                case "controlledVocabulary" -> new ControlledSingleValueField(spec.getTypeName(), value);
-                default -> throw new IllegalArgumentException("Unsupported field typeClass for " + spec.getTypeName() + ": " + spec.getTypeClass());
+                case "primitive" -> new PrimitiveSingleValueField(spec.getName(), value);
+                case "controlledVocabulary" -> new ControlledSingleValueField(spec.getName(), value);
+                default -> throw new IllegalArgumentException("Unsupported field typeClass for " + spec.getName() + ": " + spec.getTypeClass());
             };
         }
 
-        private void validateControlledVocabulary(MetadataFieldSpec spec, String value) {
-            if (!"controlledVocabulary".equals(spec.getTypeClass()) || spec.getControlledVocabularyValues().isEmpty()) {
+        private void validateControlledVocabulary(DatasetFieldType spec, String value) {
+            if (!"controlledVocabulary".equals(spec.getTypeClass()) || spec.getControlledVocabularyValues() == null || spec.getControlledVocabularyValues().isEmpty()) {
                 return;
             }
             if (!spec.getControlledVocabularyValues().contains(value)) {
-                throw new IllegalArgumentException("Invalid controlled vocabulary value for " + spec.getTypeName() + ": " + value);
+                throw new IllegalArgumentException("Invalid controlled vocabulary value for " + spec.getName() + ": " + value);
             }
         }
     }
@@ -671,7 +620,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
 
         boolean matches(String actualState) {
             boolean matches = state.equalsIgnoreCase(actualState);
-            return negated ? !matches : matches;
+            return negated != matches;
         }
 
         String describe() {

@@ -15,7 +15,6 @@
  */
 package nl.knaw.dans.dvcli.command;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import nl.knaw.dans.lib.dataverse.DatasetApi;
 import nl.knaw.dans.lib.dataverse.DataverseClient;
 import nl.knaw.dans.lib.dataverse.DataverseHttpResponse;
@@ -25,8 +24,10 @@ import nl.knaw.dans.lib.dataverse.model.DataMessage;
 import nl.knaw.dans.lib.dataverse.model.Lock;
 import nl.knaw.dans.lib.dataverse.model.dataset.CompoundMultiValueField;
 import nl.knaw.dans.lib.dataverse.model.dataset.ControlledMultiValueField;
+import nl.knaw.dans.lib.dataverse.model.dataset.DatasetFieldType;
 import nl.knaw.dans.lib.dataverse.model.dataset.DatasetVersion;
 import nl.knaw.dans.lib.dataverse.model.dataset.FieldList;
+import nl.knaw.dans.lib.dataverse.model.dataset.MetadataBlockDefinition;
 import nl.knaw.dans.lib.dataverse.model.dataset.PrimitiveSingleValueField;
 import nl.knaw.dans.lib.dataverse.model.dataset.UpdateType;
 import org.junit.jupiter.api.Test;
@@ -291,45 +292,35 @@ public class DatasetEditMetadataTest {
     void dataverse_metadata_field_spec_provider_loads_and_parses_specs() throws Exception {
         var metadataBlocksApi = Mockito.mock(MetadataBlocksApi.class);
         var response = Mockito.mock(DataverseHttpResponse.class);
-        var mapper = new ObjectMapper();
-        var json = mapper.readTree("""
-            {
-              "status": "OK",
-              "data": [
-                {
-                  "name": "citation",
-                  "fields": {
-                    "title": {
-                      "name": "title",
-                      "typeClass": "primitive",
-                      "multiple": false
-                    },
-                    "subject": {
-                      "name": "subject",
-                      "typeClass": "controlledVocabulary",
-                      "multiple": true,
-                      "controlledVocabularyValues": ["Chemistry", "Computer and Information Science"]
-                    },
-                    "author": {
-                      "name": "author",
-                      "typeClass": "compound",
-                      "multiple": true,
-                      "childFields": {
-                        "authorName": {
-                          "name": "authorName",
-                          "typeClass": "primitive",
-                          "multiple": false
-                        }
-                      }
-                    }
-                  }
-                }
-              ]
-            }
-            """);
+        var block = new MetadataBlockDefinition();
+        block.setName("citation");
+
+        var title = new DatasetFieldType();
+        title.setName("title");
+        title.setTypeClass("primitive");
+        title.setMultiple(false);
+
+        var subject = new DatasetFieldType();
+        subject.setName("subject");
+        subject.setTypeClass("controlledVocabulary");
+        subject.setMultiple(true);
+        subject.setControlledVocabularyValues(List.of("Chemistry", "Computer and Information Science"));
+
+        var authorName = new DatasetFieldType();
+        authorName.setName("authorName");
+        authorName.setTypeClass("primitive");
+        authorName.setMultiple(false);
+
+        var author = new DatasetFieldType();
+        author.setName("author");
+        author.setTypeClass("compound");
+        author.setMultiple(true);
+        author.setChildFields(Map.of("authorName", authorName));
+
+        block.setFields(Map.of("title", title, "subject", subject, "author", author));
 
         Mockito.when(metadataBlocksApi.listMetadataBlocks(false, true)).thenReturn(response);
-        Mockito.when(response.getEnvelopeAsJson()).thenReturn(json);
+        Mockito.when(response.getData()).thenReturn(List.of(block));
 
         var provider = new DatasetEditMetadata.DataverseMetadataFieldSpecProvider(metadataBlocksApi);
         var specs = provider.getFieldSpecs();
@@ -352,19 +343,33 @@ public class DatasetEditMetadataTest {
         Mockito.verify(metadataBlocksApi, Mockito.times(1)).listMetadataBlocks(false, true);
     }
 
-    private static Map<String, DatasetEditMetadata.MetadataFieldSpec> createFieldSpecs() {
+    private static Map<String, DatasetFieldType> createFieldSpecs() {
+        var title = new DatasetFieldType();
+        title.setName("title");
+        title.setTypeClass("primitive");
+        title.setMultiple(false);
+
+        var subject = new DatasetFieldType();
+        subject.setName("subject");
+        subject.setTypeClass("controlledVocabulary");
+        subject.setMultiple(true);
+        subject.setControlledVocabularyValues(List.of("Chemistry", "Medicine, Health & Life Sciences"));
+
+        var authorName = new DatasetFieldType();
+        authorName.setName("authorName");
+        authorName.setTypeClass("primitive");
+        authorName.setMultiple(false);
+
+        var author = new DatasetFieldType();
+        author.setName("author");
+        author.setTypeClass("compound");
+        author.setMultiple(true);
+        author.setChildFields(Map.of("authorName", authorName));
+
         return Map.of(
-            "title", new DatasetEditMetadata.MetadataFieldSpec("title", "primitive", false, Map.of(), List.of()),
-            "subject", new DatasetEditMetadata.MetadataFieldSpec("subject", "controlledVocabulary", true, Map.of(), List.of("Chemistry", "Medicine, Health & Life Sciences")),
-            "author", new DatasetEditMetadata.MetadataFieldSpec(
-                "author",
-                "compound",
-                true,
-                Map.of(
-                    "authorName", new DatasetEditMetadata.MetadataFieldSpec("authorName", "primitive", false, Map.of(), List.of())
-                ),
-                List.of()
-            )
+            "title", title,
+            "subject", subject,
+            "author", author
         );
     }
 
