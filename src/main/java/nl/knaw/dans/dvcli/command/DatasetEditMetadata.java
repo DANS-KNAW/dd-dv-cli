@@ -106,8 +106,8 @@ public class DatasetEditMetadata implements Callable<Integer> {
     @Option(names = { "--reports-dir" }, description = "Directory for batch reports")
     private Path reportsDir;
 
-    @Parameters(arity = "0..*", paramLabel = "FIELD=VALUE", description = "Metadata field assignment defaults")
-    private List<String> fieldAssignments = new ArrayList<>();
+    @Parameters(arity = "0..*", paramLabel = "FIELD=VALUE", description = "Metadata field assignment defaults", defaultValue = "")
+    private List<String> fieldAssignments;
 
     private final DataverseClient dataverseClient;
     private final MetadataFieldSpecProvider metadataFieldSpecProvider;
@@ -272,6 +272,10 @@ public class DatasetEditMetadata implements Callable<Integer> {
     private Map<String, String> parseAssignments(List<String> assignments) {
         var parsed = new LinkedHashMap<String, String>();
         for (String assignment : assignments) {
+            if (assignment.isBlank()) {
+                continue;
+            }
+
             int separator = assignment.indexOf('=');
             if (separator <= 0) {
                 throw new IllegalArgumentException("Invalid field assignment: " + assignment);
