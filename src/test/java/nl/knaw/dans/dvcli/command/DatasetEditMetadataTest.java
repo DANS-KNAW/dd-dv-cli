@@ -45,10 +45,21 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class DatasetEditMetadataTest {
     @TempDir
     Path tempDir;
+
+    @Test
+    void explicit_unrestricted_expectations_are_rejected() {
+        assertThatThrownBy(() -> DatasetEditMetadata.ExpectedState.parse("any"))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Invalid expectedState: any");
+        assertThatThrownBy(() -> DatasetEditMetadata.ReviewExpectation.parse("either"))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Invalid expectInReview: either");
+    }
 
     @Test
     void dataset_edit_metadata_calls_edit_endpoint() throws Exception {
@@ -87,7 +98,31 @@ public class DatasetEditMetadataTest {
     }
 
     @Test
-    void dataset_edit_metadata_skips_when_default_expected_state_does_not_match() throws Exception {
+    void dataset_edit_metadata_accepts_any_state_and_review_status_when_unspecified() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var datasetApi = Mockito.mock(DatasetApi.class);
+        var latestVersionResponse = mockLatestVersionResponse("DRAFT");
+        var lock = new Lock();
+        lock.setLockType("InReview");
+        var lockResponse = mockLockResponse(List.of(lock));
+
+        Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
+        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(latestVersionResponse);
+        Mockito.when(datasetApi.getLocks()).thenReturn(lockResponse);
+
+        var result = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--datasetId", "doi:10.5072/FK2/ABC",
+            "title=New title"
+        );
+
+        assertThat(result.exitCode()).isZero();
+        assertThat(result.stdout()).contains("OK");
+        Mockito.verify(datasetApi).editMetadata(Mockito.any(FieldList.class), Mockito.anyBoolean());
+    }
+
+    @Test
+    void dataset_edit_metadata_skips_when_explicit_expected_state_does_not_match() throws Exception {
         var dataverseClient = Mockito.mock(DataverseClient.class);
         var datasetApi = Mockito.mock(DatasetApi.class);
         var latestVersionResponse = mockLatestVersionResponse("DRAFT");
@@ -100,6 +135,7 @@ public class DatasetEditMetadataTest {
         var result = executeWithCapturedStdout(
             new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
             "--datasetId", "doi:10.5072/FK2/ABC",
+            "--expectedState", "released",
             "title=New title"
         );
 

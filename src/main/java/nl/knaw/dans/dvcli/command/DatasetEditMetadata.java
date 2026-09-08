@@ -15,7 +15,6 @@
  */
 package nl.knaw.dans.dvcli.command;
 
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import nl.knaw.dans.lib.dataverse.DatasetApi;
@@ -49,10 +48,8 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -78,7 +75,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
     private static final String MESSAGE = "message";
     private static final Set<String> RESERVED_COLUMNS = Set.of(DATASET_ID, EXPECTED_STATE, EXPECT_IN_REVIEW, PUBLISH_VERSION, REPLACE);
     private static final Set<String> RESERVED_REPORT_COLUMNS = Set.of(RESULT, MESSAGE);
-    private static final Pattern FIELD_PATTERN = Pattern.compile("^([^\\.\\[]+)(?:\\[(\\d+)])?(?:\\.(.+))?$");
+    private static final Pattern FIELD_PATTERN = Pattern.compile("^(?<field>[^.\\[]+)(?:\\[(?<index>\\d+)])?(?:\\.(?<subfield>.+))?$");
     private static final long PUBLISH_POLL_INTERVAL_MS = 5000L;
     private static final DateTimeFormatter REPORT_TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmmss");
 
@@ -88,17 +85,17 @@ public class DatasetEditMetadata implements Callable<Integer> {
     @Option(names = { "--datasetId" }, description = "Dataset database id or persistent identifier")
     private String datasetId;
 
-    @Option(names = { "--expectedState" }, description = "Expected latest version state")
+    @Option(names = { "--expectedState" }, description = "Expected latest version state: (not) draft, released, deaccessioned; omit for no expectation")
     private String expectedState;
 
-    @Option(names = { "--expectInReview" }, description = "Whether an InReview lock is expected: yes, no, either")
+    @Option(names = { "--expectInReview" }, description = "Whether an InReview lock is expected: yes, no; omit for no expectation")
     private String expectInReview;
 
     @Option(names = { "--publishVersion" }, description = "Publish as major, minor or leave-draft")
     private String publishVersion;
 
-    @Option(names = { "--replace" }, description = "Replace existing values: true/false or yes/no")
-    private String replace;
+    @Option(names = { "--replace" }, description = "Replace existing values")
+    private boolean replace;
 
     @Option(names = { "--timeout" }, defaultValue = "10", description = "Timeout in minutes for publication")
     private long timeoutInMinutes;
@@ -240,9 +237,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         if (publishVersion != null) {
             row.put(PUBLISH_VERSION, publishVersion);
         }
-        if (replace != null) {
-            row.put(REPLACE, replace);
-        }
+        row.put(REPLACE, Boolean.toString(replace));
         row.putAll(defaultFieldValues);
         return row;
     }
@@ -253,7 +248,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         applyDefault(effectiveValues, row, EXPECTED_STATE, expectedState);
         applyDefault(effectiveValues, row, EXPECT_IN_REVIEW, expectInReview);
         applyDefault(effectiveValues, row, PUBLISH_VERSION, publishVersion);
-        applyDefault(effectiveValues, row, REPLACE, replace);
+        applyDefault(effectiveValues, row, REPLACE, Boolean.toString(replace));
 
         for (var entry : defaultFieldValues.entrySet()) {
             if (!row.hasColumn(entry.getKey())) {
@@ -308,9 +303,9 @@ public class DatasetEditMetadata implements Callable<Integer> {
                 throw new IllegalArgumentException("Invalid field column: " + entry.getKey());
             }
 
-            var fieldName = matcher.group(1);
-            var indexText = matcher.group(2);
-            var subfieldName = matcher.group(3);
+            var fieldName = matcher.group("field");
+            var indexText = matcher.group("index");
+            var subfieldName = matcher.group("subfield");
             var spec = fieldSpecs.get(fieldName);
             if (spec == null) {
                 throw new IllegalArgumentException("Unknown metadata field: " + fieldName);
@@ -575,13 +570,12 @@ public class DatasetEditMetadata implements Callable<Integer> {
 
         static ReviewExpectation parse(String value) {
             if (value == null) {
-                return NO;
+                return EITHER;
             }
 
             return switch (value.toLowerCase(Locale.ROOT)) {
                 case "yes", "true" -> YES;
                 case "no", "false" -> NO;
-                case "either" -> EITHER;
                 default -> throw new IllegalArgumentException("Invalid expectInReview: " + value);
             };
         }
@@ -610,7 +604,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
 
         static ExpectedState parse(String value) {
             if (value == null) {
-                return new ExpectedState("RELEASED", false);
+                return new ExpectedState("ANY", false);
             }
 
             var normalized = value.trim();
@@ -623,7 +617,10 @@ public class DatasetEditMetadata implements Callable<Integer> {
         }
 
         boolean matches(String actualState) {
-            boolean matches = state.equalsIgnoreCase(actualState);
+            if ("ANY".equals(state)) {
+                return true;
+            }
+                            boolean matches = state.equalsIgnoreCase(actualState);
             return negated != matches;
         }
 
