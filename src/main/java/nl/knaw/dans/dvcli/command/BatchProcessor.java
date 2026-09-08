@@ -89,11 +89,15 @@ public class BatchProcessor implements Closeable {
         }
 
         public boolean hasColumn(String name) {
-            return values.containsKey(name);
+            return values.keySet().stream().anyMatch(name::equalsIgnoreCase);
         }
 
         public String getValue(String name) {
-            return values.get(name);
+            return values.entrySet().stream()
+                .filter(entry -> entry.getKey().equalsIgnoreCase(name))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElse(null);
         }
 
         public Map<String, String> asMap() {
@@ -108,7 +112,7 @@ public class BatchProcessor implements Closeable {
 
     private BatchProcessor(List<String> headers, Iterator<Map<String, String>> rows, Closeable closeable, Writer writer) throws IOException {
         for (String reportColumn : REPORT_COLUMNS) {
-            if (headers.contains(reportColumn)) {
+            if (headers.stream().anyMatch(reportColumn::equalsIgnoreCase)) {
                 throw new IllegalArgumentException("Input contains reserved column: " + reportColumn);
             }
         }
@@ -131,6 +135,7 @@ public class BatchProcessor implements Closeable {
             CSVParser parser = CSVFormat.DEFAULT.builder()
                 .setHeader()
                 .setSkipHeaderRecord(true)
+                .setCommentMarker('#')
                 .setTrim(true)
                 .get()
                 .parse(reader);

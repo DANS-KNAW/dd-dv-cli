@@ -243,7 +243,11 @@ public class DatasetEditMetadata implements Callable<Integer> {
     }
 
     private Map<String, String> applyDefaults(BatchProcessor.Row row, Map<String, String> defaultFieldValues) {
-        var effectiveValues = new LinkedHashMap<>(row.asMap());
+        var effectiveValues = new LinkedHashMap<String, String>();
+        row.asMap().forEach((name, value) -> {
+            var column = RESERVED_COLUMNS.stream().filter(name::equalsIgnoreCase).findFirst().orElse(name);
+            effectiveValues.put(column, value);
+        });
         applyDefault(effectiveValues, row, DATASET_ID, datasetId);
         applyDefault(effectiveValues, row, EXPECTED_STATE, expectedState);
         applyDefault(effectiveValues, row, EXPECT_IN_REVIEW, expectInReview);
@@ -276,7 +280,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
                 throw new IllegalArgumentException("Invalid field assignment: " + assignment);
             }
             String fieldName = assignment.substring(0, separator);
-            if (RESERVED_COLUMNS.contains(fieldName) || RESERVED_REPORT_COLUMNS.contains(fieldName)) {
+            if (containsIgnoreCase(RESERVED_COLUMNS, fieldName) || containsIgnoreCase(RESERVED_REPORT_COLUMNS, fieldName)) {
                 throw new IllegalArgumentException("Reserved field name: " + fieldName);
             }
             parsed.put(fieldName, assignment.substring(separator + 1));
@@ -287,7 +291,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
     private Map<String, String> extractEditableValues(Map<String, String> effectiveValues) {
         var values = new LinkedHashMap<String, String>();
         for (var entry : effectiveValues.entrySet()) {
-            if (!RESERVED_COLUMNS.contains(entry.getKey()) && trimToNull(entry.getValue()) != null) {
+            if (!containsIgnoreCase(RESERVED_COLUMNS, entry.getKey()) && trimToNull(entry.getValue()) != null) {
                 values.put(entry.getKey(), entry.getValue());
             }
         }
@@ -306,13 +310,13 @@ public class DatasetEditMetadata implements Callable<Integer> {
             var fieldName = matcher.group("field");
             var indexText = matcher.group("index");
             var subfieldName = matcher.group("subfield");
-            var spec = fieldSpecs.get(fieldName);
+            var spec = getFieldSpecIgnoreCase(fieldSpecs, fieldName);
             if (spec == null) {
                 throw new IllegalArgumentException("Unknown metadata field: " + fieldName);
             }
 
             int index = determineIndex(spec, indexText, entry.getKey());
-            var accumulator = accumulators.computeIfAbsent(fieldName, ignored -> new FieldValueAccumulator(spec));
+            var accumulator = accumulators.computeIfAbsent(spec.getName(), ignored -> new FieldValueAccumulator(spec));
             var value = trimToNull(entry.getValue());
             if (value == null) {
                 continue;
@@ -380,6 +384,21 @@ public class DatasetEditMetadata implements Callable<Integer> {
         }
     }
 
+    private static boolean containsIgnoreCase(Set<String> names, String name) {
+        return names.stream().anyMatch(name::equalsIgnoreCase);
+    }
+
+    private static DatasetFieldType getFieldSpecIgnoreCase(Map<String, DatasetFieldType> specs, String name) {
+        if (specs == null) {
+            return null;
+        }
+        return specs.entrySet().stream()
+            .filter(entry -> entry.getKey().equalsIgnoreCase(name))
+            .map(Map.Entry::getValue)
+            .findFirst()
+            .orElse(null);
+    }
+
     private static String trimToNull(String value) {
         if (value == null) {
             return null;
@@ -442,7 +461,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
                 throw new IllegalArgumentException("Subfield not allowed for " + columnName);
             }
 
-            var subfieldSpec = fieldSpec.getChildFields() != null ? fieldSpec.getChildFields().get(subfieldName) : null;
+            var subfieldSpec = getFieldSpecIgnoreCase(fieldSpec.getChildFields(), subfieldName);
             if (subfieldSpec == null) {
                 throw new IllegalArgumentException("Unknown subfield " + subfieldName + " for " + fieldSpec.getName());
             }
@@ -451,7 +470,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
             }
 
             var values = compoundValues.computeIfAbsent(index, ignored -> new LinkedHashMap<>());
-            if (values.putIfAbsent(subfieldName, value) != null) {
+            if (values.putIfAbsent(subfieldSpec.getName(), value) != null) {
                 throw new IllegalArgumentException("Duplicate field value for " + columnName);
             }
         }
