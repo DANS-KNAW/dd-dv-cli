@@ -30,7 +30,7 @@
 
     <name>DD DV CLI</name>
     <description>Dataverse command-line interface</description>
-    <url>https://github.com/DANS-KNAW/dd-dv-cli</url>
+    <url>https://dans-knaw.github.io/dd-dv-cli</url>
     <inceptionYear>2026</inceptionYear>
 
     <scm>
