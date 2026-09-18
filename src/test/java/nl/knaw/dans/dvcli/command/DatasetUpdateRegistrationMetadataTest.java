@@ -159,6 +159,24 @@ public class DatasetUpdateRegistrationMetadataTest {
         Mockito.verifyNoInteractions(dataverseClient);
     }
 
+    @Test
+    void dataset_update_registration_metadata_returns_non_zero_when_batch_updates_nothing() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var inputFile = tempDir.resolve("input.csv");
+        Files.writeString(inputFile, """
+            pid
+            """);
+
+        var result = executeWithCapturedStdout(
+            new CommandLine(new DatasetUpdateRegistrationMetadata(dataverseClient)),
+            "--input-file", inputFile.toString()
+        );
+
+        assertThat(result.exitCode()).isEqualTo(1);
+        assertThat(result.stdout()).contains("pid,result,message");
+        Mockito.verifyNoInteractions(dataverseClient);
+    }
+
     @SuppressWarnings("unchecked")
     private static DataverseHttpResponse<DataMessage> mockResponse() {
         var response = Mockito.mock(DataverseHttpResponse.class);

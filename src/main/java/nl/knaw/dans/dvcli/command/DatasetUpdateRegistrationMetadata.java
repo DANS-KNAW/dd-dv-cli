@@ -70,7 +70,7 @@ public class DatasetUpdateRegistrationMetadata implements Callable<Integer> {
                 var batchProcessor = BatchProcessor.forCsv(inputFile, writer)) {
                 var summary = batchProcessor.process(this::processRow);
                 log.info("Finished: {} ok, {} failed, {} skipped", summary.getOkCount(), summary.getFailedCount(), summary.getSkippedCount());
-                return summary.getFailedCount() == 0 ? 0 : 1;
+                return summary.getFailedCount() == 0 && summary.getOkCount() > 0 ? 0 : 1;
             }
         }
         catch (Exception e) {
