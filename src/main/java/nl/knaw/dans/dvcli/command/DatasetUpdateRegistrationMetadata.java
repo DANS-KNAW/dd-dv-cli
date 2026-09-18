@@ -27,7 +27,6 @@ import java.io.PrintWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.LinkedHashMap;
 import java.util.concurrent.Callable;
 
 @Command(name = "dataset-update-registration-metadata",
@@ -106,15 +105,6 @@ public class DatasetUpdateRegistrationMetadata implements Callable<Integer> {
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
-    }
-
-    @SuppressWarnings("unused")
-    private LinkedHashMap<String, String> createSingleRow(String datasetPid) {
-        var row = new LinkedHashMap<String, String>();
-        if (!isBlank(datasetPid)) {
-            row.put(PID, datasetPid);
-        }
-        return row;
     }
 
     private String trimToNull(String value) {
