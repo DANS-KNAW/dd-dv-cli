@@ -63,7 +63,7 @@ public class DatasetUpdateRegistrationMetadataTest {
         var result = executeWithCapturedStdout(new CommandLine(new DatasetUpdateRegistrationMetadata(dataverseClient)), "doi:10.5072/FK2/ABC");
 
         assertThat(result.exitCode()).isEqualTo(1);
-        assertThat(result.stderr()).contains("Error updating registration metadata: failure");
+        assertThat(result.stderr()).contains("Error updating registration metadata: status: 500; message: failure");
         Mockito.verify(datasetApi).updateRegistrationMetadata();
     }
 
@@ -81,8 +81,10 @@ public class DatasetUpdateRegistrationMetadataTest {
 
         Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi1);
         Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/DEF")).thenReturn(datasetApi2);
-        Mockito.when(datasetApi1.updateRegistrationMetadata()).thenReturn(mockResponse());
-        Mockito.when(datasetApi2.updateRegistrationMetadata()).thenReturn(mockResponse());
+        var response1 = mockResponse();
+        var response2 = mockResponse();
+        Mockito.when(datasetApi1.updateRegistrationMetadata()).thenReturn(response1);
+        Mockito.when(datasetApi2.updateRegistrationMetadata()).thenReturn(response2);
 
         var result = executeWithCapturedStdout(
             new CommandLine(new DatasetUpdateRegistrationMetadata(dataverseClient)),
@@ -117,7 +119,7 @@ public class DatasetUpdateRegistrationMetadataTest {
 
         assertThat(result.exitCode()).isEqualTo(1);
         assertThat(result.stdout()).contains("pid,result,message")
-            .contains("doi:10.5072/FK2/ABC,FAILED,failure");
+            .contains("doi:10.5072/FK2/ABC,FAILED,status: 500; message: failure");
         Mockito.verify(datasetApi).updateRegistrationMetadata();
     }
 
