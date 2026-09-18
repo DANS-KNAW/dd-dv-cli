@@ -69,6 +69,7 @@ public class DatasetUpdateRegistrationMetadata implements Callable<Integer> {
             try (var writer = createReportWriter();
                 var batchProcessor = BatchProcessor.forCsv(inputFile, writer)) {
                 var summary = batchProcessor.process(this::processRow);
+                writer.flush();
                 log.info("Finished: {} ok, {} failed, {} skipped", summary.getOkCount(), summary.getFailedCount(), summary.getSkippedCount());
                 return summary.getFailedCount() == 0 && summary.getOkCount() > 0 ? 0 : 1;
             }
