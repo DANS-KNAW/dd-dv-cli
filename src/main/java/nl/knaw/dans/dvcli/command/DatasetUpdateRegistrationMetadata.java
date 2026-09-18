@@ -61,7 +61,7 @@ public class DatasetUpdateRegistrationMetadata implements Callable<Integer> {
             }
 
             if (inputFile == null) {
-                var response = getDatasetApi(pid).updateRegistrationMetadata();
+                var response = dataverseClient.dataset(pid).updateRegistrationMetadata();
                 System.out.println(response.getEnvelopeAsString());
                 return 0;
             }
