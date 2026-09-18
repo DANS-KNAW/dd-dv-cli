@@ -27,6 +27,7 @@ import picocli.CommandLine;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -185,20 +186,12 @@ public class DatasetUpdateRegistrationMetadataTest {
     }
 
     private CapturedExecution executeWithCapturedStdout(CommandLine commandLine, String... args) {
-        var originalOut = System.out;
-        var originalErr = System.err;
         var out = new ByteArrayOutputStream();
         var err = new ByteArrayOutputStream();
-        try {
-            System.setOut(new PrintStream(out, true));
-            System.setErr(new PrintStream(err, true));
-            var exitCode = commandLine.execute(args);
-            return new CapturedExecution(exitCode, out.toString(), err.toString());
-        }
-        finally {
-            System.setOut(originalOut);
-            System.setErr(originalErr);
-        }
+        commandLine.setOut(new PrintWriter(new PrintStream(out, true), true));
+        commandLine.setErr(new PrintWriter(new PrintStream(err, true), true));
+        var exitCode = commandLine.execute(args);
+        return new CapturedExecution(exitCode, out.toString(), err.toString());
     }
 
     private record CapturedExecution(int exitCode, String stdout, String stderr) {
