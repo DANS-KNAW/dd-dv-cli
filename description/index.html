@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Description - dd-dv-cli</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Description";
+        var mkdocs_page_input_path = "description.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> dd-dv-cli
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption"><span class="caption-text">Manual</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="..">Introduction</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="./">Description</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#dv-dataset-edit-metadata">dv dataset-edit-metadata</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#columns">Columns</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#field-types">Field types</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#running-without-a-csv-input-file">Running without a CSV input file</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#report">Report</a>
+    </li>
+        </ul>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../installation/">Installation</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../context/">Context</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Development</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../dev/">Overview</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">dd-dv-cli</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+          <li>Manual &raquo;</li><li>Description</li>
+    <li class="wy-breadcrumbs-aside">
+        <a href="https://github.com/DANS-KNAW/dd-dv-cli/edit/master/docs/description.md"> Edit on DANS-KNAW/dd-dv-cli</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="description">Description<a class="headerlink" href="#description" title="Permanent link">&para;</a></h1>
+<p>Dataverse command-line interface. It uses the <a href="https://guides.dataverse.org/en/latest/api/index.html" target="_blank">Dataverse API</a> and in some cases direct access to the Dataverse database. The commands are
+implemented using <a href="https://dans-knaw.github.io/dans-dataverse-client-lib/" target="_blank">dans-dataverse-client-lib</a>.</p>
+<h2 id="dv-dataset-edit-metadata">dv dataset-edit-metadata<a class="headerlink" href="#dv-dataset-edit-metadata" title="Permanent link">&para;</a></h2>
+<p>For bulk changes on the metadata of multiple datasets in a Dataverse instance, you can use <code>dv dataset-edit-metadata</code>. This command uses the
+<a href="https://guides.dataverse.org/en/latest/api/native-api.html#edit-dataset-metadata" target="_blank">Edit metadata</a> endpoint, which allows you to add or replace metadata fields in a dataset. For typical usage, the command takes a CSV file as
+input.</p>
+<h3 id="columns">Columns<a class="headerlink" href="#columns" title="Permanent link">&para;</a></h3>
+<p>The columns fall into several categories:</p>
+<ul>
+<li>Dataset identifier<ul>
+<li><code>datasetId</code> - the ID or PID of the dataset, a PID must contain the protocol, e.g., <code>doi:10.5072/FK2/123456</code></li>
+</ul>
+</li>
+<li>Preconditions<ul>
+<li><code>expectedState</code> - the expected state of the dataset version to be edited, one of <code>draft</code>, <code>released</code>, <code>deacessioned</code> or a negation of one of those, e.g.,
+  <code>not released</code></li>
+<li><code>expectInReview</code> - whether the dataset is expected to be in review: <code>yes</code> or <code>no</code></li>
+</ul>
+</li>
+<li>Processing instructions<ul>
+<li><code>publishVersion</code> - whether to publish the dataset after editing, one of <code>minor</code>, <code>major</code> or <code>leave-draft</code>.</li>
+<li><code>replace</code> - whether to replace existing values or add to them: <code>yes</code> or <code>no</code></li>
+</ul>
+</li>
+<li>Field values</li>
+</ul>
+<h3 id="field-types">Field types<a class="headerlink" href="#field-types" title="Permanent link">&para;</a></h3>
+<p>The names of the field value columns depend on the metadata blocks that are available.</p>
+<ul>
+<li>A primitive field or controlled vocabulary field is specified simply by the field identifier, e.g., <code>myField</code>.</li>
+<li>If multiple values are to be added, the field identifier is indexed, e.g., <code>myField[1]</code>. <code>myField[2]</code>, etc.</li>
+<li>A compound field is specified by the field identifier of the parent field, followed by a dot and the name of the child field, e.g., <code>myField.myChildField</code>.
+  Note that in many cases the name of the child field refers to the parent field by convention, e.g., <code>authorName</code>, but you still have to prefix it with the
+  parent field identifier, e.g., <code>author.authorName</code>.</li>
+<li>If multiple values of a compound field are to be added, the parent field identifier is indexed, e.g., <code>myField[1].myChildField</code>, <code>myField[2].myChildField</code>,
+  etc.</li>
+</ul>
+<h3 id="running-without-a-csv-input-file">Running without a CSV input file<a class="headerlink" href="#running-without-a-csv-input-file" title="Permanent link">&para;</a></h3>
+<p>When testing, it can be useful to specify a row directly on the command-line, without going to the trouble of first saving it into a CSV file. The columns for
+dataset identifier, preconditions and processing instructions all have their command line equivalent, e.g., <code>--datasetId</code>, <code>--expectedState</code>, etc. Field values
+can be specified on the command line as trailing arguments in the format <code>&lt;column name&gt;=&lt;value&gt;</code>. Note that you will need to enclose the whole argument in
+quotes if the value contains spaces, or if the name has an index, e.g., <code>'myField[1]=longer value with spaces'</code>.</p>
+<h3 id="report">Report<a class="headerlink" href="#report" title="Permanent link">&para;</a></h3>
+<p>When running with a CSV input file, a report will be written to a file in the directory configured in <code>editMetadata.reportsDir</code> in <code>.dv.yml</code>. The <code>--report-dir</code>
+option can be used to override this location. The report contains a copy of each line with the extra columns <code>result</code> and <code>message</code>. When running without a CSV
+input file, the report is written to the standard output.</p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href=".." class="btn btn-neutral float-left" title="Introduction"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../installation/" class="btn btn-neutral float-right" title="Installation">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href=".." style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../installation/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script>var base_url = '..';</script>
+    <script src="../js/theme_extra.js" defer></script>
+    <script src="../js/theme.js" defer></script>
+      <script src="../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>
