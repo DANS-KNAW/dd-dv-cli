@@ -73,7 +73,7 @@ dv notifications-truncate [ --user <userId> ] --keep <keep>
 dv dataset-archive-version [ --skip-pids-from <skipPidsFrom> ] [ --force ] \
    [ --allow-rearchive-older-versions ] --report <reportBasename> \
    [ -w <waitBetweenItems> ] { -p <pid> -v <version> | -i <inputFile> }
-dv dataset-update-registration-metadata [ -i <inputFile> ] [ <pid> ]
+dv dataset-update-registration-metadata { -i <inputFile> | <pid> }
 dv users-import -i <inputCsv> -k <builtinUsersKey> [ --dry-run ]
 
 ```

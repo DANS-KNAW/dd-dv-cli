@@ -16,7 +16,6 @@
 package nl.knaw.dans.dvcli.command;
 
 import lombok.extern.slf4j.Slf4j;
-import nl.knaw.dans.lib.dataverse.DatasetApi;
 import nl.knaw.dans.lib.dataverse.DataverseClient;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -92,17 +91,8 @@ public class DatasetUpdateRegistrationMetadata implements Callable<Integer> {
         }
 
         log.info("Updating registration metadata for dataset {}", effectivePid);
-        getDatasetApi(effectivePid).updateRegistrationMetadata();
+        dataverseClient.dataset(effectivePid).updateRegistrationMetadata();
         return BatchProcessor.Result.ok("Registration metadata updated");
-    }
-
-    private DatasetApi getDatasetApi(String datasetId) {
-        try {
-            return dataverseClient.dataset(Integer.parseInt(datasetId));
-        }
-        catch (NumberFormatException e) {
-            return dataverseClient.dataset(datasetId);
-        }
     }
 
     private boolean isBlank(String value) {

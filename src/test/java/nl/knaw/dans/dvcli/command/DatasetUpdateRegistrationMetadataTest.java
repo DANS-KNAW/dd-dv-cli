@@ -53,6 +53,22 @@ public class DatasetUpdateRegistrationMetadataTest {
     }
 
     @Test
+    void dataset_update_registration_metadata_treats_numeric_like_pid_as_pid() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var datasetApi = Mockito.mock(DatasetApi.class);
+        var response = mockResponse();
+
+        Mockito.when(dataverseClient.dataset("00123")).thenReturn(datasetApi);
+        Mockito.when(datasetApi.updateRegistrationMetadata()).thenReturn(response);
+
+        var result = executeWithCapturedStdout(new CommandLine(new DatasetUpdateRegistrationMetadata(dataverseClient)), "00123");
+
+        assertThat(result.exitCode()).isZero();
+        Mockito.verify(dataverseClient).dataset("00123");
+        Mockito.verify(dataverseClient, Mockito.never()).dataset(123);
+    }
+
+    @Test
     void dataset_update_registration_metadata_returns_non_zero_on_error() throws Exception {
         var dataverseClient = Mockito.mock(DataverseClient.class);
         var datasetApi = Mockito.mock(DatasetApi.class);
