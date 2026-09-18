@@ -55,6 +55,10 @@ public class DatasetUpdateRegistrationMetadata implements Callable<Integer> {
                 System.err.println("Either --input-file or PID is required");
                 return 1;
             }
+            if (inputFile != null && !isBlank(pid)) {
+                System.err.println("PID cannot be used together with --input-file");
+                return 1;
+            }
 
             if (inputFile == null) {
                 var response = getDatasetApi(pid).updateRegistrationMetadata();
@@ -82,9 +86,6 @@ public class DatasetUpdateRegistrationMetadata implements Callable<Integer> {
 
     private BatchProcessor.Result processRow(BatchProcessor.Row row) throws Exception {
         var effectivePid = trimToNull(row.getValue(PID));
-        if (effectivePid == null) {
-            effectivePid = trimToNull(pid);
-        }
         if (effectivePid == null) {
             return BatchProcessor.Result.failed("Missing pid");
         }

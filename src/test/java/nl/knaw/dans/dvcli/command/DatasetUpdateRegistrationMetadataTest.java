@@ -121,6 +121,26 @@ public class DatasetUpdateRegistrationMetadataTest {
         Mockito.verify(datasetApi).updateRegistrationMetadata();
     }
 
+    @Test
+    void dataset_update_registration_metadata_rejects_pid_with_input_file() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var inputFile = tempDir.resolve("input.csv");
+        Files.writeString(inputFile, """
+            pid
+            doi:10.5072/FK2/ABC
+            """);
+
+        var result = executeWithCapturedStdout(
+            new CommandLine(new DatasetUpdateRegistrationMetadata(dataverseClient)),
+            "--input-file", inputFile.toString(),
+            "doi:10.5072/FK2/XYZ"
+        );
+
+        assertThat(result.exitCode()).isEqualTo(1);
+        assertThat(result.stderr()).contains("PID cannot be used together with --input-file");
+        Mockito.verifyNoInteractions(dataverseClient);
+    }
+
     @SuppressWarnings("unchecked")
     private static DataverseHttpResponse<DataMessage> mockResponse() {
         var response = Mockito.mock(DataverseHttpResponse.class);
