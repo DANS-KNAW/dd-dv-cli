@@ -25,6 +25,7 @@ import picocli.CommandLine.Parameters;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.Writer;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
@@ -36,7 +37,7 @@ import java.util.concurrent.Callable;
 public class DatasetUpdateRegistrationMetadata implements Callable<Integer> {
     private static final String PID = "pid";
 
-    @Option(names = { "-i", "--input-file" }, description = "Input CSV file")
+    @Option(names = { "-i", "--input-file" }, description = "Input CSV file with a pid column")
     private Path inputFile;
 
     @Parameters(arity = "0..1", paramLabel = "PID", description = "PID of the dataset")
@@ -81,7 +82,7 @@ public class DatasetUpdateRegistrationMetadata implements Callable<Integer> {
     }
 
     private Writer createReportWriter() {
-        return new PrintWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8), true);
+        return new PrintWriter(new NonClosingWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8)), true);
     }
 
     private BatchProcessor.Result processRow(BatchProcessor.Row row) throws Exception {
@@ -110,5 +111,28 @@ public class DatasetUpdateRegistrationMetadata implements Callable<Integer> {
 
     private String trimToNull(String value) {
         return isBlank(value) ? null : value.trim();
+    }
+
+    private static class NonClosingWriter extends Writer {
+        private final Writer delegate;
+
+        private NonClosingWriter(Writer delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void write(char[] cbuf, int off, int len) throws IOException {
+            delegate.write(cbuf, off, len);
+        }
+
+        @Override
+        public void flush() throws IOException {
+            delegate.flush();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.flush();
+        }
     }
 }
