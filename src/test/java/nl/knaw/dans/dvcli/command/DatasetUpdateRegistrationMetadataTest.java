@@ -74,7 +74,7 @@ public class DatasetUpdateRegistrationMetadataTest {
         var datasetApi2 = Mockito.mock(DatasetApi.class);
         var inputFile = tempDir.resolve("input.csv");
         Files.writeString(inputFile, """
-            PID
+            pid
             doi:10.5072/FK2/ABC
             doi:10.5072/FK2/DEF
             """);
@@ -90,7 +90,7 @@ public class DatasetUpdateRegistrationMetadataTest {
         );
 
         assertThat(result.exitCode()).isZero();
-        assertThat(result.stdout()).contains("PID,result,message")
+        assertThat(result.stdout()).contains("pid,result,message")
             .contains("doi:10.5072/FK2/ABC,OK,Registration metadata updated")
             .contains("doi:10.5072/FK2/DEF,OK,Registration metadata updated");
         Mockito.verify(datasetApi1).updateRegistrationMetadata();
