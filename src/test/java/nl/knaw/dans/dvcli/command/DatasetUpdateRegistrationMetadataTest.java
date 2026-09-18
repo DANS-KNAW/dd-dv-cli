@@ -22,17 +22,20 @@ import nl.knaw.dans.lib.dataverse.DataverseHttpResponse;
 import nl.knaw.dans.lib.dataverse.model.DataMessage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.api.parallel.Resources;
 import org.mockito.Mockito;
 import picocli.CommandLine;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
-import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@ResourceLock(Resources.SYSTEM_OUT)
+@ResourceLock(Resources.SYSTEM_ERR)
 public class DatasetUpdateRegistrationMetadataTest {
     @TempDir
     Path tempDir;
@@ -186,12 +189,20 @@ public class DatasetUpdateRegistrationMetadataTest {
     }
 
     private CapturedExecution executeWithCapturedStdout(CommandLine commandLine, String... args) {
+        var originalOut = System.out;
+        var originalErr = System.err;
         var out = new ByteArrayOutputStream();
         var err = new ByteArrayOutputStream();
-        commandLine.setOut(new PrintWriter(new PrintStream(out, true), true));
-        commandLine.setErr(new PrintWriter(new PrintStream(err, true), true));
-        var exitCode = commandLine.execute(args);
-        return new CapturedExecution(exitCode, out.toString(), err.toString());
+        try {
+            System.setOut(new PrintStream(out, true));
+            System.setErr(new PrintStream(err, true));
+            var exitCode = commandLine.execute(args);
+            return new CapturedExecution(exitCode, out.toString(), err.toString());
+        }
+        finally {
+            System.setOut(originalOut);
+            System.setErr(originalErr);
+        }
     }
 
     private record CapturedExecution(int exitCode, String stdout, String stderr) {
