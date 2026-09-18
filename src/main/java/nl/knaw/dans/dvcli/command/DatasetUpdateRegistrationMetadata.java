@@ -15,30 +15,115 @@
  */
 package nl.knaw.dans.dvcli.command;
 
+import lombok.extern.slf4j.Slf4j;
 import nl.knaw.dans.lib.dataverse.DataverseClient;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
 
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.io.Writer;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.concurrent.Callable;
 
 @Command(name = "dataset-update-registration-metadata",
-         description = "Updates registration metadata for a published dataset at the PID provider",
+         description = "Updates registration metadata for a published dataset or batch of datasets at the PID provider",
          mixinStandardHelpOptions = true)
-public class DatasetUpdateRegistrationMetadata extends AbstractDatasetCmd implements Callable<Integer> {
+@Slf4j
+public class DatasetUpdateRegistrationMetadata implements Callable<Integer> {
+    private static final String PID = "pid";
+
+    @Option(names = { "-i", "--input-file" }, description = "Input CSV file with a pid column")
+    private Path inputFile;
+
+    @Parameters(arity = "0..1", paramLabel = "PID", description = "PID of the dataset")
+    private String pid;
+
+    private final DataverseClient dataverseClient;
 
     public DatasetUpdateRegistrationMetadata(DataverseClient dataverseClient) {
-        super(dataverseClient);
+        this.dataverseClient = dataverseClient;
     }
 
     @Override
     public Integer call() {
         try {
-            var response = getDatasetApi().updateRegistrationMetadata();
-            System.out.println(response.getEnvelopeAsString());
-            return 0;
+            if (inputFile == null && isBlank(pid)) {
+                System.err.println("Either --input-file or PID is required");
+                return 1;
+            }
+            if (inputFile != null && !isBlank(pid)) {
+                System.err.println("PID cannot be used together with --input-file");
+                return 1;
+            }
+
+            if (inputFile == null) {
+                var response = dataverseClient.dataset(pid).updateRegistrationMetadata();
+                System.out.println(response.getEnvelopeAsString());
+                return 0;
+            }
+
+            try (var writer = createReportWriter();
+                var batchProcessor = BatchProcessor.forCsv(inputFile, writer)) {
+                var summary = batchProcessor.process(this::processRow);
+                writer.flush();
+                log.info("Finished: {} ok, {} failed, {} skipped", summary.getOkCount(), summary.getFailedCount(), summary.getSkippedCount());
+                return summary.getFailedCount() == 0 && summary.getOkCount() > 0 ? 0 : 1;
+            }
         }
         catch (Exception e) {
+            log.error("Error updating registration metadata", e);
             System.err.println("Error updating registration metadata: " + e.getMessage());
             return 1;
+        }
+    }
+
+    private Writer createReportWriter() {
+        return new PrintWriter(new NonClosingWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8)), true);
+    }
+
+    private BatchProcessor.Result processRow(BatchProcessor.Row row) throws Exception {
+        var effectivePid = trimToNull(row.getValue(PID));
+        if (effectivePid == null) {
+            return BatchProcessor.Result.failed("Missing pid");
+        }
+
+        log.info("Updating registration metadata for dataset {}", effectivePid);
+        dataverseClient.dataset(effectivePid).updateRegistrationMetadata();
+        return BatchProcessor.Result.ok("Registration metadata updated");
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private String trimToNull(String value) {
+        return isBlank(value) ? null : value.trim();
+    }
+
+    private static class NonClosingWriter extends Writer {
+        private final Writer delegate;
+
+        private NonClosingWriter(Writer delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void write(char[] cbuf, int off, int len) throws IOException {
+            delegate.write(cbuf, off, len);
+        }
+
+        @Override
+        public void flush() throws IOException {
+            delegate.flush();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.flush();
         }
     }
 }
