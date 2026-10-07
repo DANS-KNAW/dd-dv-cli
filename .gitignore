@@ -22,4 +22,4 @@
 /.dans.knaw.nl-yum-repo
 /venv/
 /.venv-mkdocs
-
+/__pycache__*
