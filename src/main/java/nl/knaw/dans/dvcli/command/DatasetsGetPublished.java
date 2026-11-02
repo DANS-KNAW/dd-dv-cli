@@ -47,6 +47,7 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
         private final String pid;
         private final Long majorVersion;
         private final Long minorVersion;
+        private final String nbn;
     }
 
     public static class CsvOptions {
@@ -79,6 +80,9 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
 
     @Option(names = { "--updatecurrent" }, description = "An updatecurrent action was performed on the dataset version")
     private boolean updateCurrent;
+
+    @Option(names = { "--include-nbn" }, description = "Include the value of the dansNbn metadata field in the column NBN")
+    private boolean includeNbn;
 
     @Override
     protected Integer doCall() throws Exception {
@@ -123,7 +127,14 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
         String query = """
             SELECT dvo.protocol || ':' || dvo.authority || '/' || dvo.identifier AS PID,
                    dsv.versionnumber                                             AS MAJORVERSION,
-                   dsv.minorversionnumber                                        AS MINORVERSION
+                   dsv.minorversionnumber                                        AS MINORVERSION,
+                   (SELECT dfv.value
+                    FROM datasetfield df
+                             JOIN datasetfieldtype dft ON df.datasetfieldtype_id = dft.id
+                             JOIN datasetfieldvalue dfv ON dfv.datasetfield_id = df.id
+                    WHERE df.datasetversion_id = dsv.id
+                      AND dft.name = 'dansNbn'
+                    LIMIT 1)                                                     AS NBN
             FROM datasetversion dsv
                      JOIN dvobject dvo ON dsv.dataset_id = dvo.id
             WHERE dsv.lastupdatetime > ?
@@ -157,7 +168,8 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
                 return new DatasetVersionInfo(
                     rs.getString("PID"),
                     rs.getObject("MAJORVERSION", Long.class),
-                    rs.getObject("MINORVERSION", Long.class)
+                    rs.getObject("MINORVERSION", Long.class),
+                    rs.getString("NBN")
                 );
             }
             catch (Exception e) {
@@ -165,6 +177,30 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
             }
         })) {
             return context.executeFor(Collections.singletonList(parameters));
+        }
+    }
+
+    private String[] csvHeader() {
+        return includeNbn
+            ? new String[] { "PID", "MAJORVERSION", "MINORVERSION", "NBN" }
+            : new String[] { "PID", "MAJORVERSION", "MINORVERSION" };
+    }
+
+    private void printCsvRecord(CSVPrinter printer, DatasetVersionInfo info) throws Exception {
+        if (includeNbn) {
+            warnIfNbnMissing(info);
+            printer.printRecord(info.getPid(), info.getMajorVersion(), info.getMinorVersion(), info.getNbn());
+        }
+        else {
+            printer.printRecord(info.getPid(), info.getMajorVersion(), info.getMinorVersion());
+        }
+    }
+
+    private void warnIfNbnMissing(DatasetVersionInfo info) {
+        if (info.getNbn() == null || info.getNbn().isBlank()) {
+            var err = spec.commandLine().getErr();
+            err.printf("WARNING: no dansNbn found for %s version %s.%s%n", info.getPid(), info.getMajorVersion(), info.getMinorVersion());
+            err.flush();
         }
     }
 
@@ -186,10 +222,10 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
 
             try (var out = new PrintWriter(batchFile);
                 var printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder()
-                    .setHeader("PID", "MAJORVERSION", "MINORVERSION")
+                    .setHeader(csvHeader())
                     .build())) {
                 for (DatasetVersionInfo info : batch) {
-                    printer.printRecord(info.getPid(), info.getMajorVersion(), info.getMinorVersion());
+                    printCsvRecord(printer, info);
                     printer.flush();
                 }
             }
@@ -198,21 +234,27 @@ public class DatasetsGetPublished extends AbstractDatabaseCmd implements Callabl
 
     private void writeSingleCsvFile(List<DatasetVersionInfo> results, PrintWriter out) throws Exception {
         try (var printer = new CSVPrinter(out, CSVFormat.DEFAULT.builder()
-            .setHeader("PID", "MAJORVERSION", "MINORVERSION")
+            .setHeader(csvHeader())
             .build())) {
             for (DatasetVersionInfo info : results) {
-                printer.printRecord(info.getPid(), info.getMajorVersion(), info.getMinorVersion());
+                printCsvRecord(printer, info);
                 printer.flush();
             }
         }
     }
 
     private void writeTable(List<DatasetVersionInfo> results, PrintWriter out) {
-        out.printf("%-40s %-15s%n", "PID", "Version");
-        out.println("-".repeat(56));
+        out.printf("%-40s %-15s" + (includeNbn ? " %-40s" : "") + "%n", includeNbn ? new Object[] { "PID", "Version", "NBN" } : new Object[] { "PID", "Version" });
+        out.println("-".repeat(includeNbn ? 97 : 56));
         for (DatasetVersionInfo info : results) {
             String version = info.getMajorVersion() + "." + info.getMinorVersion();
-            out.printf("%-40s %-15s%n", info.getPid(), version);
+            if (includeNbn) {
+                warnIfNbnMissing(info);
+                out.printf("%-40s %-15s %-40s%n", info.getPid(), version, info.getNbn() == null ? "" : info.getNbn());
+            }
+            else {
+                out.printf("%-40s %-15s%n", info.getPid(), version);
+            }
         }
     }
 }

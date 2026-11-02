@@ -72,7 +72,7 @@ public class DatasetArchiveVersion extends AbstractDatabaseCmd implements Callab
         @ArgGroup(exclusive = false)
         SingleVersionOptions singleVersion;
 
-        @Option(names = { "-i", "--input-file" }, description = "Input CSV file (PID, MAJORVERSION, MINORVERSION)")
+        @Option(names = { "-i", "--input-file" }, description = "Input CSV file (PID, MAJORVERSION, MINORVERSION). An optional NBN column, as produced by datasets-get-published --include-nbn, is accepted but ignored")
         File inputFile;
     }
 

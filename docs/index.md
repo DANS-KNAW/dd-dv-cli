@@ -36,7 +36,7 @@ dv index-clear-timestamps
 
 # Reports
 dv datasets-get-published [ --after <after> ] [ --archived ] [ --unarchived ] \
-   [ --updatecurrent ] [ -o <outputFile> [ -b <batchSize> ] ]
+   [ --updatecurrent ] [ --include-nbn ] [ -o <outputFile> [ -b <batchSize> ] ]
 dv filemetas-get-published -o <outputFile> [ --dataset-pid ] [ --label ] \
    [ --directory-label ]
 dv datasets-get-storage-size [ -b <base> ] [ --min-size <minSize> ] \ 
