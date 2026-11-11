@@ -40,7 +40,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -62,18 +61,6 @@ public class DatasetEditMetadataTest {
             .hasMessage("Invalid expectInReview: either");
         assertThat(DatasetEditMetadata.PublishVersion.parse("no"))
             .isEqualTo(DatasetEditMetadata.PublishVersion.LEAVE_DRAFT);
-    }
-
-    @Test
-    void timeout_requires_an_explicit_unit_and_accepts_common_units() {
-        var converter = new DatasetEditMetadata.TimeoutConverter();
-
-        assertThat(converter.convert("10s")).isEqualTo(Duration.ofSeconds(10));
-        assertThat(converter.convert("2m")).isEqualTo(Duration.ofMinutes(2));
-        assertThat(converter.convert("1.5h")).isEqualTo(Duration.ofMinutes(90));
-        assertThatThrownBy(() -> converter.convert("10"))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("Invalid timeout: 10");
     }
 
     @Test

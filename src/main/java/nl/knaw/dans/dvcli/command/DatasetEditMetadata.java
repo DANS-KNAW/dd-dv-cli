@@ -41,7 +41,6 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.Writer;
-import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -58,7 +57,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 @Command(
@@ -99,7 +97,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
     @Option(names = { "--replace" }, description = "Replace existing values")
     private boolean replace;
 
-    @Option(names = { "--timeout" }, defaultValue = "10s", converter = TimeoutConverter.class, description = "Timeout for publication (default unit: seconds)")
+    @Option(names = { "--timeout" }, defaultValue = "PT10S", description = "Timeout for publication as an ISO-8601 duration, e.g. PT30S, PT2M (default: ${DEFAULT-VALUE})")
     private Duration timeout;
 
     @Option(names = { "--reports-dir" }, description = "Directory for batch reports")
@@ -125,6 +123,11 @@ public class DatasetEditMetadata implements Callable<Integer> {
     @Override
     public Integer call() {
         try {
+            if (timeout.isZero() || timeout.isNegative()) {
+                System.err.println("--timeout must be greater than zero");
+                return 1;
+            }
+
             if (inputFile == null && isBlank(datasetId)) {
                 System.err.println("Either --input-file or --datasetId is required");
                 return 1;
@@ -621,40 +624,6 @@ public class DatasetEditMetadata implements Callable<Integer> {
             }
             if (!spec.getControlledVocabularyValues().contains(value)) {
                 throw new IllegalArgumentException("Invalid controlled vocabulary value for " + spec.getName() + ": " + value);
-            }
-        }
-    }
-
-    public static class TimeoutConverter implements picocli.CommandLine.ITypeConverter<Duration> {
-        private static final Pattern TIME_VALUE = Pattern.compile("^(?<amount>\\d+(?:\\.\\d+)?)(?<unit>ns|us|ms|s|m|h|d)$", Pattern.CASE_INSENSITIVE);
-
-        @Override
-        public Duration convert(String value) {
-            var matcher = TIME_VALUE.matcher(value.trim());
-            if (!matcher.matches()) {
-                throw new IllegalArgumentException("Invalid timeout: " + value);
-            }
-            var amount = new BigDecimal(matcher.group("amount"));
-            var unit = matcher.group("unit");
-            var nanosPerUnit = switch (unit.toLowerCase(Locale.ROOT)) {
-                case "ns" -> BigDecimal.ONE;
-                case "us" -> BigDecimal.valueOf(1_000L);
-                case "ms" -> BigDecimal.valueOf(1_000_000L);
-                case "s" -> BigDecimal.valueOf(TimeUnit.SECONDS.toNanos(1));
-                case "m" -> BigDecimal.valueOf(TimeUnit.MINUTES.toNanos(1));
-                case "h" -> BigDecimal.valueOf(TimeUnit.HOURS.toNanos(1));
-                case "d" -> BigDecimal.valueOf(TimeUnit.DAYS.toNanos(1));
-                default -> throw new IllegalArgumentException("Invalid timeout unit: " + unit);
-            };
-            try {
-                var duration = Duration.ofNanos(amount.multiply(nanosPerUnit).longValueExact());
-                if (duration.isZero() || duration.isNegative()) {
-                    throw new IllegalArgumentException("Timeout must be greater than zero: " + value);
-                }
-                return duration;
-            }
-            catch (ArithmeticException e) {
-                throw new IllegalArgumentException("Invalid timeout: " + value, e);
             }
         }
     }
