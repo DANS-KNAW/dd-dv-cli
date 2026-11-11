@@ -308,10 +308,14 @@ public class DatasetEditMetadataTest {
             """);
 
         Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
-        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(mockLatestVersionResponse("RELEASED"));
-        Mockito.when(datasetApi.getLocks()).thenReturn(mockLockResponse(List.of()));
-        Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(mockDatasetVersionResponse());
-        Mockito.when(datasetApi.publish(UpdateType.minor, false)).thenReturn(mockDataMessageResponse());
+        var latestVersionResponse = mockLatestVersionResponse("RELEASED");
+        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(latestVersionResponse);
+        var locksResponse = mockLockResponse(List.of());
+        Mockito.when(datasetApi.getLocks()).thenReturn(locksResponse);
+        var editResponse = mockDatasetVersionResponse();
+        Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(editResponse);
+        var publishResponse = mockDataMessageResponse();
+        Mockito.when(datasetApi.publish(UpdateType.minor, false)).thenReturn(publishResponse);
 
         var result = executeWithCapturedStdout(
             new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
@@ -340,9 +344,12 @@ public class DatasetEditMetadataTest {
             """);
 
         Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
-        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(mockLatestVersionResponse("RELEASED"));
-        Mockito.when(datasetApi.getLocks()).thenReturn(mockLockResponse(List.of()));
-        Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(mockDatasetVersionResponse());
+        var latestVersionResponse = mockLatestVersionResponse("RELEASED");
+        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(latestVersionResponse);
+        var locksResponse = mockLockResponse(List.of());
+        Mockito.when(datasetApi.getLocks()).thenReturn(locksResponse);
+        var editResponse = mockDatasetVersionResponse();
+        Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(editResponse);
 
         var result = executeWithCapturedStdout(
             new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
@@ -367,8 +374,10 @@ public class DatasetEditMetadataTest {
             """);
 
         Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
-        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(mockLatestVersionResponse("RELEASED"));
-        Mockito.when(datasetApi.getLocks()).thenReturn(mockLockResponse(List.of()));
+        var latestVersionResponse = mockLatestVersionResponse("RELEASED");
+        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(latestVersionResponse);
+        var locksResponse = mockLockResponse(List.of());
+        Mockito.when(datasetApi.getLocks()).thenReturn(locksResponse);
 
         var result = executeWithCapturedStdout(
             new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
