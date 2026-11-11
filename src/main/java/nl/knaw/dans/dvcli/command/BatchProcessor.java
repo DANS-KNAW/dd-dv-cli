@@ -176,6 +176,10 @@ public class BatchProcessor implements Closeable {
         }, writer);
     }
 
+    public List<String> getHeaders() {
+        return headers;
+    }
+
     public Summary process(RowHandler handler) throws IOException {
         int okCount = 0;
         int failedCount = 0;

@@ -59,6 +59,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 @Command(
     name = "dataset-edit-metadata",
@@ -68,6 +69,11 @@ import java.util.regex.Pattern;
 @Slf4j
 public class DatasetEditMetadata implements Callable<Integer> {
     private static final String DATASET_ID = "datasetId";
+    private static final String PID = "pid";
+    private static final String DATABASE_ID = "databaseId";
+    private static final List<String> ID_COLUMNS = List.of(DATASET_ID, PID, DATABASE_ID);
+    private static final Pattern PID_PATTERN = Pattern.compile("^[A-Za-z][A-Za-z0-9]*:\\S.*$");
+    private static final Pattern DATABASE_ID_PATTERN = Pattern.compile("^\\d+$");
     private static final String EXPECTED_STATE = "expectedState";
     private static final String EXPECT_IN_REVIEW = "expectInReview";
     private static final String PUBLISH_VERSION = "publishVersion";
@@ -75,7 +81,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
     private static final String REPLACE = "replace";
     private static final String RESULT = "result";
     private static final String MESSAGE = "message";
-    private static final Set<String> RESERVED_COLUMNS = Set.of(DATASET_ID, EXPECTED_STATE, EXPECT_IN_REVIEW, PUBLISH_VERSION, VERSION_NOTE, REPLACE);
+    private static final Set<String> RESERVED_COLUMNS = Set.of(DATASET_ID, PID, DATABASE_ID, EXPECTED_STATE, EXPECT_IN_REVIEW, PUBLISH_VERSION, VERSION_NOTE, REPLACE);
     private static final Set<String> RESERVED_REPORT_COLUMNS = Set.of(RESULT, MESSAGE);
     private static final Pattern FIELD_PATTERN = Pattern.compile("^(?<field>[^.\\[]+)(?:\\[(?<index>\\d+)])?(?:\\.(?<subfield>.+))?$");
     private static final long PUBLISH_POLL_INTERVAL_MS = 5000L;
@@ -86,6 +92,12 @@ public class DatasetEditMetadata implements Callable<Integer> {
 
     @Option(names = { "--datasetId" }, description = "Dataset database id or persistent identifier")
     private String datasetId;
+
+    @Option(names = { "--pid" }, description = "Dataset persistent identifier, including the protocol, e.g., doi:10.5072/FK2/ABC")
+    private String pid;
+
+    @Option(names = { "--databaseId" }, description = "Dataset database id (digits only)")
+    private String databaseId;
 
     @Option(names = { "--expectedState" }, description = "Expected latest version state: (not) draft, released, deaccessioned; omit for no expectation")
     private String expectedState;
@@ -133,8 +145,13 @@ public class DatasetEditMetadata implements Callable<Integer> {
                 return 1;
             }
 
-            if (inputFile == null && isBlank(datasetId)) {
-                System.err.println("Either --input-file or --datasetId is required");
+            var idOptionCount = Stream.of(datasetId, pid, databaseId).filter(value -> !isBlank(value)).count();
+            if (idOptionCount > 1) {
+                System.err.println("--datasetId, --pid and --databaseId are mutually exclusive");
+                return 1;
+            }
+            if (inputFile == null && idOptionCount == 0) {
+                System.err.println("Either --input-file or one of --datasetId, --pid, --databaseId is required");
                 return 1;
             }
 
@@ -154,6 +171,18 @@ public class DatasetEditMetadata implements Callable<Integer> {
                 var batchProcessor = inputFile != null
                     ? BatchProcessor.forCsv(inputFile, writer)
                     : BatchProcessor.forSingleRow(createSingleRow(defaultFieldValues), writer)) {
+
+                if (inputFile != null) {
+                    var idColumnCount = ID_COLUMNS.stream().filter(column -> containsIgnoreCase(Set.copyOf(batchProcessor.getHeaders()), column)).count();
+                    if (idColumnCount > 1) {
+                        System.err.println("Input file must contain only one of the columns datasetId, pid and databaseId");
+                        return 1;
+                    }
+                    if (idColumnCount == 0 && idOptionCount == 0) {
+                        System.err.println("Input file must contain one of the columns datasetId, pid and databaseId");
+                        return 1;
+                    }
+                }
 
                 var summary = batchProcessor.process(row -> processRow(row, defaultFieldValues, fieldSpecs));
                 log.info("Finished: {} ok, {} failed, {} skipped", summary.getOkCount(), summary.getFailedCount(), summary.getSkippedCount());
@@ -193,13 +222,28 @@ public class DatasetEditMetadata implements Callable<Integer> {
 
     private BatchProcessor.Result processRow(BatchProcessor.Row row, Map<String, String> defaultFieldValues, Map<String, DatasetFieldType> fieldSpecs) throws Exception {
         var effectiveValues = applyDefaults(row);
-        var id = trimToNull(effectiveValues.get(DATASET_ID));
-        if (id == null) {
-            return BatchProcessor.Result.failed("Missing datasetId");
+        var idColumns = ID_COLUMNS.stream().filter(column -> trimToNull(effectiveValues.get(column)) != null).toList();
+        if (idColumns.isEmpty()) {
+            return BatchProcessor.Result.failed("Missing dataset identifier: one of datasetId, pid or databaseId is required");
+        }
+        if (idColumns.size() > 1) {
+            return BatchProcessor.Result.failed("Only one of datasetId, pid and databaseId may be specified");
+        }
+        var idColumn = idColumns.get(0);
+        var id = trimToNull(effectiveValues.get(idColumn));
+        if (PID.equals(idColumn) && !PID_PATTERN.matcher(id).matches()) {
+            return BatchProcessor.Result.failed("Invalid pid, it must start with a protocol label such as 'doi:': " + id);
+        }
+        if (DATABASE_ID.equals(idColumn) && !DATABASE_ID_PATTERN.matcher(id).matches()) {
+            return BatchProcessor.Result.failed("Invalid databaseId, it must consist of digits only: " + id);
         }
 
         log.info("Processing metadata edit for dataset {}", id);
-        var datasetApi = getDatasetApi(id);
+        var datasetApi = switch (idColumn) {
+            case PID -> dataverseClient.dataset(id);
+            case DATABASE_ID -> dataverseClient.dataset(Integer.parseInt(id));
+            default -> getDatasetApi(id);
+        };
         var latestVersion = datasetApi.getVersion(Version.LATEST.toString()).getData();
 
         var actualState = latestVersion.getVersionState();
@@ -248,6 +292,12 @@ public class DatasetEditMetadata implements Callable<Integer> {
         if (!isBlank(datasetId)) {
             row.put(DATASET_ID, datasetId);
         }
+        if (!isBlank(pid)) {
+            row.put(PID, pid);
+        }
+        if (!isBlank(databaseId)) {
+            row.put(DATABASE_ID, databaseId);
+        }
         if (expectedState != null) {
             row.put(EXPECTED_STATE, expectedState);
         }
@@ -271,7 +321,12 @@ public class DatasetEditMetadata implements Callable<Integer> {
             var column = RESERVED_COLUMNS.stream().filter(name::equalsIgnoreCase).findFirst().orElse(name);
             effectiveValues.put(column, value);
         });
-        applyDefault(effectiveValues, row, DATASET_ID, datasetId);
+        var rowHasId = ID_COLUMNS.stream().anyMatch(column -> row.hasColumn(column) && !isBlank(row.getValue(column)));
+        if (!rowHasId) {
+            applyDefault(effectiveValues, row, DATASET_ID, datasetId);
+            applyDefault(effectiveValues, row, PID, pid);
+            applyDefault(effectiveValues, row, DATABASE_ID, databaseId);
+        }
         applyDefault(effectiveValues, row, EXPECTED_STATE, expectedState);
         applyDefault(effectiveValues, row, EXPECT_IN_REVIEW, expectInReview);
         applyDefault(effectiveValues, row, PUBLISH_VERSION, publishVersion);

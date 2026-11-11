@@ -428,6 +428,97 @@ public class DatasetEditMetadataTest {
     }
 
     @Test
+    void dataset_edit_metadata_accepts_pid_and_database_id_options() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var datasetApi = Mockito.mock(DatasetApi.class);
+        var latestVersionResponse = mockLatestVersionResponse("RELEASED");
+        var lockResponse = mockLockResponse(List.of());
+
+        Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
+        Mockito.when(dataverseClient.dataset(42)).thenReturn(datasetApi);
+        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(latestVersionResponse);
+        Mockito.when(datasetApi.getLocks()).thenReturn(lockResponse);
+        Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(mockDatasetVersionResponse());
+
+        assertThat(executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--pid", "doi:10.5072/FK2/ABC", "title=New title").exitCode()).isZero();
+        assertThat(executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--databaseId", "42", "title=New title").exitCode()).isZero();
+        Mockito.verify(dataverseClient).dataset("doi:10.5072/FK2/ABC");
+        Mockito.verify(dataverseClient).dataset(42);
+    }
+
+    @Test
+    void dataset_edit_metadata_rejects_multiple_identifier_options() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+
+        var result = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--pid", "doi:10.5072/FK2/ABC", "--databaseId", "42", "title=New title");
+
+        assertThat(result.exitCode()).isEqualTo(1);
+        assertThat(result.stderr()).contains("mutually exclusive");
+    }
+
+    @Test
+    void dataset_edit_metadata_validates_identifier_formats_per_row() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var pidFile = tempDir.resolve("pids.csv");
+        Files.writeString(pidFile, """
+            pid,title
+            10.5072/FK2/ABC,T
+            """);
+        var databaseIdFile = tempDir.resolve("database-ids.csv");
+        Files.writeString(databaseIdFile, """
+            databaseId,title
+            12a,T
+            """);
+
+        var pidResult = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--input-file", pidFile.toString());
+        var databaseIdResult = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--input-file", databaseIdFile.toString());
+
+        assertThat(pidResult.exitCode()).isEqualTo(1);
+        assertThat(pidResult.stdout()).contains("Invalid pid");
+        assertThat(databaseIdResult.exitCode()).isEqualTo(1);
+        assertThat(databaseIdResult.stdout()).contains("Invalid databaseId");
+        Mockito.verifyNoInteractions(dataverseClient);
+    }
+
+    @Test
+    void dataset_edit_metadata_requires_exactly_one_identifier_column_in_input_file() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var twoColumns = tempDir.resolve("two.csv");
+        Files.writeString(twoColumns, """
+            pid,DatabaseId,title
+            doi:10.5072/FK2/ABC,42,T
+            """);
+        var noColumns = tempDir.resolve("none.csv");
+        Files.writeString(noColumns, """
+            title
+            T
+            """);
+
+        var twoResult = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--input-file", twoColumns.toString());
+        var noneResult = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--input-file", noColumns.toString());
+
+        assertThat(twoResult.exitCode()).isEqualTo(1);
+        assertThat(twoResult.stderr()).contains("only one of the columns");
+        assertThat(noneResult.exitCode()).isEqualTo(1);
+        assertThat(noneResult.stderr()).contains("must contain one of the columns");
+        Mockito.verifyNoInteractions(dataverseClient);
+    }
+
+    @Test
     void dataset_edit_metadata_rejects_field_arguments_together_with_input_file() throws Exception {
         var dataverseClient = Mockito.mock(DataverseClient.class);
         var inputFile = tempDir.resolve("input.csv");
