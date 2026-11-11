@@ -59,8 +59,9 @@ public class DatasetEditMetadataTest {
         assertThatThrownBy(() -> DatasetEditMetadata.ReviewExpectation.parse("either"))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessage("Invalid expectInReview: either");
-        assertThat(DatasetEditMetadata.PublishVersion.parse("no"))
-            .isEqualTo(DatasetEditMetadata.PublishVersion.LEAVE_DRAFT);
+        assertThatThrownBy(() -> DatasetEditMetadata.PublishVersion.parse("no"))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Invalid publishVersion: no");
     }
 
     @Test
@@ -354,13 +355,13 @@ public class DatasetEditMetadataTest {
     }
 
     @Test
-    void dataset_edit_metadata_clears_a_field_with_a_clear_column() throws Exception {
+    void dataset_edit_metadata_clears_a_field_for_an_empty_cell_when_replacing() throws Exception {
         var dataverseClient = Mockito.mock(DataverseClient.class);
         var datasetApi = Mockito.mock(DatasetApi.class);
-        var inputFile = tempDir.resolve("clear.csv");
+        var inputFile = tempDir.resolve("input.csv");
         Files.writeString(inputFile, """
-            datasetId,subject-CLEAR
-            doi:10.5072/FK2/ABC,YeS
+            datasetId,subject
+            doi:10.5072/FK2/ABC,
             """);
 
         Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
@@ -369,7 +370,37 @@ public class DatasetEditMetadataTest {
         var locksResponse = mockLockResponse(List.of());
         Mockito.when(datasetApi.getLocks()).thenReturn(locksResponse);
         var editResponse = mockDatasetVersionResponse();
-        Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(editResponse);
+        Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.anyBoolean())).thenReturn(editResponse);
+
+        var result = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--input-file", inputFile.toString(), "--replace"
+        );
+
+        assertThat(result.exitCode()).isZero();
+        var captor = ArgumentCaptor.forClass(FieldList.class);
+        Mockito.verify(datasetApi).editMetadata(captor.capture(), Mockito.eq(true));
+        assertThat(captor.getValue().getFields()).hasSize(1);
+        assertThat(((ControlledMultiValueField) captor.getValue().getFields().get(0)).getValue()).isEmpty();
+    }
+
+    @Test
+    void dataset_edit_metadata_ignores_an_empty_cell_when_not_replacing() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var datasetApi = Mockito.mock(DatasetApi.class);
+        var inputFile = tempDir.resolve("input.csv");
+        Files.writeString(inputFile, """
+            datasetId,title,subject
+            doi:10.5072/FK2/ABC,New title,
+            """);
+
+        Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
+        var latestVersionResponse = mockLatestVersionResponse("RELEASED");
+        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(latestVersionResponse);
+        var locksResponse = mockLockResponse(List.of());
+        Mockito.when(datasetApi.getLocks()).thenReturn(locksResponse);
+        var editResponse = mockDatasetVersionResponse();
+        Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.anyBoolean())).thenReturn(editResponse);
 
         var result = executeWithCapturedStdout(
             new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
@@ -380,17 +411,16 @@ public class DatasetEditMetadataTest {
         var captor = ArgumentCaptor.forClass(FieldList.class);
         Mockito.verify(datasetApi).editMetadata(captor.capture(), Mockito.eq(false));
         assertThat(captor.getValue().getFields()).hasSize(1);
-        assertThat(((ControlledMultiValueField) captor.getValue().getFields().get(0)).getValue()).isEmpty();
     }
 
     @Test
-    void dataset_edit_metadata_rejects_a_value_and_clear_for_the_same_field() throws Exception {
+    void dataset_edit_metadata_skips_cells_with_the_skip_code_when_replacing() throws Exception {
         var dataverseClient = Mockito.mock(DataverseClient.class);
         var datasetApi = Mockito.mock(DatasetApi.class);
-        var inputFile = tempDir.resolve("conflict.csv");
+        var inputFile = tempDir.resolve("input.csv");
         Files.writeString(inputFile, """
-            datasetId,title,title-CLEAR
-            doi:10.5072/FK2/ABC,New title,yes
+            datasetId,title,subject
+            doi:10.5072/FK2/ABC,New title,!skip
             """);
 
         Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
@@ -398,15 +428,49 @@ public class DatasetEditMetadataTest {
         Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(latestVersionResponse);
         var locksResponse = mockLockResponse(List.of());
         Mockito.when(datasetApi.getLocks()).thenReturn(locksResponse);
+        var editResponse = mockDatasetVersionResponse();
+        Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.anyBoolean())).thenReturn(editResponse);
 
         var result = executeWithCapturedStdout(
             new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
-            "--input-file", inputFile.toString()
+            "--input-file", inputFile.toString(), "--replace"
         );
 
-        assertThat(result.exitCode()).isEqualTo(1);
-        assertThat(result.stdout()).contains("FAILED");
-        Mockito.verify(datasetApi, Mockito.never()).editMetadata(Mockito.any(FieldList.class), Mockito.anyBoolean());
+        assertThat(result.exitCode()).isZero();
+        var captor = ArgumentCaptor.forClass(FieldList.class);
+        Mockito.verify(datasetApi).editMetadata(captor.capture(), Mockito.eq(true));
+        assertThat(captor.getValue().getFields()).hasSize(1);
+        assertThat(((PrimitiveSingleValueField) captor.getValue().getFields().get(0)).getValue()).isEqualTo("New title");
+    }
+
+    @Test
+    void dataset_edit_metadata_uses_a_custom_skip_code() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var datasetApi = Mockito.mock(DatasetApi.class);
+        var inputFile = tempDir.resolve("input.csv");
+        Files.writeString(inputFile, """
+            datasetId,title,subject
+            doi:10.5072/FK2/ABC,!skip,SKIP
+            """);
+
+        Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
+        var latestVersionResponse = mockLatestVersionResponse("RELEASED");
+        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(latestVersionResponse);
+        var locksResponse = mockLockResponse(List.of());
+        Mockito.when(datasetApi.getLocks()).thenReturn(locksResponse);
+        var editResponse = mockDatasetVersionResponse();
+        Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.anyBoolean())).thenReturn(editResponse);
+
+        var result = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--input-file", inputFile.toString(), "--replace", "--skip-code", "SKIP"
+        );
+
+        assertThat(result.exitCode()).isZero();
+        var captor = ArgumentCaptor.forClass(FieldList.class);
+        Mockito.verify(datasetApi).editMetadata(captor.capture(), Mockito.eq(true));
+        assertThat(captor.getValue().getFields()).hasSize(1);
+        assertThat(((PrimitiveSingleValueField) captor.getValue().getFields().get(0)).getValue()).isEqualTo("!skip");
     }
 
     @Test

@@ -105,7 +105,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
     @Option(names = { "--expectInReview" }, description = "Whether an InReview lock is expected: yes, no; omit for no expectation")
     private String expectInReview;
 
-    @Option(names = { "--publishVersion" }, description = "Publish as major, minor, leave-draft or no")
+    @Option(names = { "--publishVersion" }, description = "Publish as major, minor or leave-draft")
     private String publishVersion;
 
     @Option(names = { "--versionNote" }, description = "Version note to set on the draft before publication")
@@ -113,6 +113,9 @@ public class DatasetEditMetadata implements Callable<Integer> {
 
     @Option(names = { "--replace" }, description = "Replace existing values")
     private boolean replace;
+
+    @Option(names = { "--skip-code" }, defaultValue = "!skip", description = "Cell value that marks a field as not to be changed (default: ${DEFAULT-VALUE})")
+    private String skipCode;
 
     @Option(names = { "--timeout" }, defaultValue = "10s", converter = TimeoutConverter.class, description = "Timeout for publication, e.g. 30s, 2m, 1h; without a unit seconds are assumed (default: ${DEFAULT-VALUE})")
     private Duration timeout;
@@ -261,12 +264,11 @@ public class DatasetEditMetadata implements Callable<Integer> {
         }
 
         var editableValues = extractEditableValues(effectiveValues);
-        if (editableValues.isEmpty()) {
+        var replaceExistingValues = parseBoolean(trimToNull(effectiveValues.get(REPLACE)), false, REPLACE);
+        var fieldList = toFieldList(editableValues, fieldSpecs, replaceExistingValues);
+        if (fieldList.getFields().isEmpty()) {
             return BatchProcessor.Result.failed("No metadata fields specified");
         }
-
-        var fieldList = toFieldList(editableValues, fieldSpecs);
-        var replaceExistingValues = parseBoolean(trimToNull(effectiveValues.get(REPLACE)), false, REPLACE);
         log.debug("Editing {} metadata fields for dataset {} with replace={}", fieldList.getFields().size(), id, replaceExistingValues);
         datasetApi.editMetadata(fieldList, replaceExistingValues);
 
@@ -364,40 +366,23 @@ public class DatasetEditMetadata implements Callable<Integer> {
     private Map<String, String> extractEditableValues(Map<String, String> effectiveValues) {
         var values = new LinkedHashMap<String, String>();
         for (var entry : effectiveValues.entrySet()) {
-            if (!containsIgnoreCase(RESERVED_COLUMNS, entry.getKey()) && trimToNull(entry.getValue()) != null) {
+            if (!containsIgnoreCase(RESERVED_COLUMNS, entry.getKey())) {
                 values.put(entry.getKey(), entry.getValue());
             }
         }
         return values;
     }
 
-    private FieldList toFieldList(Map<String, String> editableValues, Map<String, DatasetFieldType> fieldSpecs) {
+    private FieldList toFieldList(Map<String, String> editableValues, Map<String, DatasetFieldType> fieldSpecs, boolean replaceExistingValues) {
         var accumulators = new LinkedHashMap<String, FieldValueAccumulator>();
 
         for (var entry : editableValues.entrySet()) {
-            if (isClearColumn(entry.getKey())) {
-                var clearFieldName = entry.getKey().substring(0, entry.getKey().length() - "-CLEAR".length());
-                if (!"yes".equalsIgnoreCase(entry.getValue().trim())) {
-                    if ("no".equalsIgnoreCase(entry.getValue().trim())) {
-                        continue;
-                    }
-                    throw new IllegalArgumentException("Invalid value for " + entry.getKey() + ": " + entry.getValue());
-                }
-
-                var clearFieldSpec = getFieldSpecIgnoreCase(fieldSpecs, clearFieldName);
-                if (clearFieldSpec == null) {
-                    throw new IllegalArgumentException("Unknown metadata field: " + clearFieldName);
-                }
-                boolean hasValue = editableValues.entrySet().stream()
-                    .filter(valueEntry -> !isClearColumn(valueEntry.getKey()))
-                    .filter(valueEntry -> trimToNull(valueEntry.getValue()) != null)
-                    .anyMatch(valueEntry -> rootFieldName(valueEntry.getKey()).equalsIgnoreCase(clearFieldSpec.getName()));
-                if (hasValue) {
-                    throw new IllegalArgumentException("Cannot specify both " + clearFieldName + " and " + entry.getKey());
-                }
-
-                var accumulator = accumulators.computeIfAbsent(clearFieldSpec.getName(), ignored -> new FieldValueAccumulator(clearFieldSpec));
-                accumulator.clear(entry.getKey());
+            var value = trimToNull(entry.getValue());
+            if (value != null && value.equals(skipCode)) {
+                markSkipped(entry.getKey(), fieldSpecs, accumulators);
+                continue;
+            }
+            if (value == null && !replaceExistingValues) {
                 continue;
             }
 
@@ -416,8 +401,8 @@ public class DatasetEditMetadata implements Callable<Integer> {
 
             int index = determineIndex(spec, indexText, entry.getKey());
             var accumulator = accumulators.computeIfAbsent(spec.getName(), ignored -> new FieldValueAccumulator(spec));
-            var value = trimToNull(entry.getValue());
             if (value == null) {
+                accumulator.markBlank();
                 continue;
             }
 
@@ -431,14 +416,19 @@ public class DatasetEditMetadata implements Callable<Integer> {
 
         var fieldList = new FieldList();
         for (FieldValueAccumulator accumulator : accumulators.values()) {
-            fieldList.add(accumulator.toMetadataField());
+            if (accumulator.isChanged()) {
+                fieldList.add(accumulator.toMetadataField());
+            }
         }
         return fieldList;
     }
 
-    private static boolean isClearColumn(String columnName) {
-        return columnName.length() >= "-CLEAR".length()
-            && columnName.regionMatches(true, columnName.length() - "-CLEAR".length(), "-CLEAR", 0, "-CLEAR".length());
+    private void markSkipped(String columnName, Map<String, DatasetFieldType> fieldSpecs, Map<String, FieldValueAccumulator> accumulators) {
+        var spec = getFieldSpecIgnoreCase(fieldSpecs, rootFieldName(columnName));
+        if (spec == null) {
+            throw new IllegalArgumentException("Unknown metadata field: " + rootFieldName(columnName));
+        }
+        accumulators.computeIfAbsent(spec.getName(), ignored -> new FieldValueAccumulator(spec)).markSkipped();
     }
 
     private static String rootFieldName(String columnName) {
@@ -555,7 +545,8 @@ public class DatasetEditMetadata implements Callable<Integer> {
         private final DatasetFieldType fieldSpec;
         private final Map<Integer, String> simpleValues = new TreeMap<>();
         private final Map<Integer, Map<String, String>> compoundValues = new TreeMap<>();
-        private boolean clear;
+        private boolean blank;
+        private boolean skipped;
 
         void addValue(int index, String value, String columnName) {
             if ("compound".equals(fieldSpec.getTypeClass())) {
@@ -585,15 +576,23 @@ public class DatasetEditMetadata implements Callable<Integer> {
             }
         }
 
-        void clear(String columnName) {
-            if (clear || !simpleValues.isEmpty() || !compoundValues.isEmpty()) {
-                throw new IllegalArgumentException("Duplicate or conflicting clear for " + columnName);
+        void markBlank() {
+            blank = true;
+        }
+
+        void markSkipped() {
+            skipped = true;
+        }
+
+        boolean isChanged() {
+            if (!simpleValues.isEmpty() || !compoundValues.isEmpty()) {
+                return true;
             }
-            clear = true;
+            return blank && !skipped;
         }
 
         MetadataField toMetadataField() {
-            if (clear) {
+            if (simpleValues.isEmpty() && compoundValues.isEmpty()) {
                 return clearField();
             }
             if ("compound".equals(fieldSpec.getTypeClass())) {
@@ -716,7 +715,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
             return switch (value.toLowerCase(Locale.ROOT)) {
                 case "minor" -> MINOR;
                 case "major" -> MAJOR;
-                case "leave-draft", "no" -> LEAVE_DRAFT;
+                case "leave-draft" -> LEAVE_DRAFT;
                 default -> throw new IllegalArgumentException("Invalid publishVersion: " + value);
             };
         }
