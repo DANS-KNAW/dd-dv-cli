@@ -139,6 +139,10 @@ public class DatasetEditMetadata implements Callable<Integer> {
             }
 
             var defaultFieldValues = parseAssignments(fieldAssignments);
+            if (inputFile != null && !defaultFieldValues.isEmpty()) {
+                System.err.println("Field values can only be provided in the input file when --input-file is used");
+                return 1;
+            }
             log.info("Starting dataset-edit-metadata in {} mode", inputFile != null ? "batch" : "single-row");
             if (inputFile == null && defaultFieldValues.isEmpty()) {
                 System.err.println("At least one metadata field assignment is required");
@@ -188,7 +192,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
     }
 
     private BatchProcessor.Result processRow(BatchProcessor.Row row, Map<String, String> defaultFieldValues, Map<String, DatasetFieldType> fieldSpecs) throws Exception {
-        var effectiveValues = applyDefaults(row, defaultFieldValues);
+        var effectiveValues = applyDefaults(row);
         var id = trimToNull(effectiveValues.get(DATASET_ID));
         if (id == null) {
             return BatchProcessor.Result.failed("Missing datasetId");
@@ -261,7 +265,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         return row;
     }
 
-    private Map<String, String> applyDefaults(BatchProcessor.Row row, Map<String, String> defaultFieldValues) {
+    private Map<String, String> applyDefaults(BatchProcessor.Row row) {
         var effectiveValues = new LinkedHashMap<String, String>();
         row.asMap().forEach((name, value) -> {
             var column = RESERVED_COLUMNS.stream().filter(name::equalsIgnoreCase).findFirst().orElse(name);
@@ -273,13 +277,6 @@ public class DatasetEditMetadata implements Callable<Integer> {
         applyDefault(effectiveValues, row, PUBLISH_VERSION, publishVersion);
         applyDefault(effectiveValues, row, VERSION_NOTE, versionNote);
         applyDefault(effectiveValues, row, REPLACE, Boolean.toString(replace));
-
-        for (var entry : defaultFieldValues.entrySet()) {
-            var clearValue = trimToNull(row.getValue(entry.getKey() + "-CLEAR"));
-            if (!"yes".equalsIgnoreCase(clearValue) && (!row.hasColumn(entry.getKey()) || isBlank(row.getValue(entry.getKey())))) {
-                effectiveValues.put(entry.getKey(), entry.getValue());
-            }
-        }
         return effectiveValues;
     }
 

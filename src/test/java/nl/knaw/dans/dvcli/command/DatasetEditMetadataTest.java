@@ -156,7 +156,7 @@ public class DatasetEditMetadataTest {
     }
 
     @Test
-    void dataset_edit_metadata_uses_cli_defaults_for_batch_rows() throws Exception {
+    void dataset_edit_metadata_reads_field_values_from_input_file() throws Exception {
         var dataverseClient = Mockito.mock(DataverseClient.class);
         var datasetApi = Mockito.mock(DatasetApi.class);
         var inputFile = tempDir.resolve("input.csv");
@@ -176,8 +176,7 @@ public class DatasetEditMetadataTest {
         var result = executeWithCapturedStdout(
             new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
             "--input-file", inputFile.toString(),
-            "--reports-dir", reportsDir.toString(),
-            "title=New title"
+            "--reports-dir", reportsDir.toString()
         );
 
         assertThat(result.exitCode()).isZero();
@@ -197,8 +196,8 @@ public class DatasetEditMetadataTest {
         var latestVersionResponse = mockLatestVersionResponse("RELEASED");
         var lockResponse = mockLockResponse(List.of());
         Files.writeString(inputFile, """
-            datasetId
-            doi:10.5072/FK2/ABC
+            datasetId,title
+            doi:10.5072/FK2/ABC,New title
             """);
 
         Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
@@ -208,14 +207,13 @@ public class DatasetEditMetadataTest {
 
         var result = executeWithCapturedStdout(
             new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, reportsDir)),
-            "--input-file", inputFile.toString(),
-            "title=New title"
+            "--input-file", inputFile.toString()
         );
 
         assertThat(result.exitCode()).isZero();
         var reportFile = singleReportFileIn(reportsDir);
         assertThat(reportFile.getFileName().toString()).startsWith("batch-input-").endsWith(".csv");
-        assertThat(Files.readString(reportFile)).contains("doi:10.5072/FK2/ABC,OK,Metadata edited");
+        assertThat(Files.readString(reportFile)).contains("doi:10.5072/FK2/ABC,New title,OK,Metadata edited");
     }
 
     @Test
@@ -327,7 +325,7 @@ public class DatasetEditMetadataTest {
         var inputFile = tempDir.resolve("defaults.csv");
         Files.writeString(inputFile, """
             datasetId,expectedState,publishVersion,title
-            doi:10.5072/FK2/ABC,,,
+            doi:10.5072/FK2/ABC,,,Default title
             """);
 
         Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
@@ -344,8 +342,7 @@ public class DatasetEditMetadataTest {
             new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
             "--input-file", inputFile.toString(),
             "--expectedState", "released",
-            "--publishVersion", "minor",
-            "title=Default title"
+            "--publishVersion", "minor"
         );
 
         assertThat(result.exitCode()).isZero();
@@ -423,12 +420,30 @@ public class DatasetEditMetadataTest {
 
         var result = executeWithCapturedStdout(
             new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--input-file", inputFile.toString()
+        );
+
+        assertThat(result.exitCode()).isEqualTo(1);
+        assertThat(result.stderr()).contains("Input contains reserved column: result");
+    }
+
+    @Test
+    void dataset_edit_metadata_rejects_field_arguments_together_with_input_file() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var inputFile = tempDir.resolve("input.csv");
+        Files.writeString(inputFile, """
+            datasetId
+            doi:10.5072/FK2/ABC
+            """);
+
+        var result = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
             "--input-file", inputFile.toString(),
             "title=New title"
         );
 
         assertThat(result.exitCode()).isEqualTo(1);
-        assertThat(result.stderr()).contains("Input contains reserved column: result");
+        assertThat(result.stderr()).contains("Field values can only be provided in the input file");
     }
 
     @Test

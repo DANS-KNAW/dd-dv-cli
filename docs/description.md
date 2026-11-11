@@ -35,14 +35,14 @@ Column names are case-insensitive.
 ### Default values
 
 The command line options `--expectedState`, `--expectInReview`, `--publishVersion`, `--versionNote`, `--replace` and `--datasetId` can be combined with
-`--input-file` (`-i`). In that case they provide default values for the corresponding columns:
+`--input-file` (`-i`). Field values are not covered by this mechanism, see below. In that case they provide default values for the corresponding columns:
 
 * If the CSV file has no column of that name, the command line value is used for every row.
 * If the column exists, the command line value is used for the rows where the cell is empty or blank. A non-blank cell always takes precedence.
 * If neither a column value nor a command line option is given, the setting is not applied (e.g., no state expectation, no publication, no version note).
 
-Field values can also be given as trailing `<column name>=<value>` arguments. These act as defaults in the same way: they are used for rows where the field
-cell is empty or the column is absent. They are not applied to a field whose `<fieldId>-CLEAR` cell contains `yes`, so that the field is cleared instead.
+Field values have no defaults. When an input file is used, field values can only be provided in the file; specifying `<column name>=<value>` arguments on the
+command line together with `--input-file` is an error. A blank field cell leaves the field unchanged.
 
 The option `--timeout` (for example `30s`, `2m`; seconds if no unit is given) is not a column; it applies to the wait for publication of each dataset.
 
@@ -62,7 +62,7 @@ The names of the field value columns depend on the metadata blocks that are avai
 
 When testing, it can be useful to specify a row directly on the command-line, without going to the trouble of first saving it into a CSV file. The columns for
 dataset identifier, preconditions and processing instructions all have their command line equivalent, e.g., `--datasetId`, `--expectedState`, etc. Field values
-can be specified on the command line as trailing arguments in the format `<column name>=<value>`. Note that you will need to enclose the whole argument in
+can be specified on the command line as trailing arguments (only when no input file is used) in the format `<column name>=<value>`. Note that you will need to enclose the whole argument in
 quotes if the value contains spaces, or if the name has an index, e.g., `'myField[1]=longer value with spaces'`.
 
 ### Report
