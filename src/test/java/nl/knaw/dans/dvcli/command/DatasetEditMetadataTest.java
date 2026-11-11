@@ -64,6 +64,15 @@ public class DatasetEditMetadataTest {
     }
 
     @Test
+    void timeout_accepts_units_and_defaults_to_seconds() {
+        var converter = new DatasetEditMetadata.TimeoutConverter();
+
+        assertThat(converter.convert("10s").toSeconds()).isEqualTo(10);
+        assertThat(converter.convert("2m").toSeconds()).isEqualTo(120);
+        assertThat(converter.convert("30").toSeconds()).isEqualTo(30);
+    }
+
+    @Test
     void dataset_edit_metadata_calls_edit_endpoint() throws Exception {
         var dataverseClient = Mockito.mock(DataverseClient.class);
         var datasetApi = Mockito.mock(DatasetApi.class);
@@ -232,6 +241,33 @@ public class DatasetEditMetadataTest {
         assertThat(exitCode).isZero();
         Mockito.verify(datasetApi).publish(UpdateType.minor, false);
         Mockito.verify(datasetApi).awaitState("RELEASED", 10000L, 5000L);
+    }
+
+    @Test
+    void dataset_edit_metadata_sets_version_note_before_publishing() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var datasetApi = Mockito.mock(DatasetApi.class);
+        var latestVersionResponse = mockLatestVersionResponse("RELEASED");
+        var lockResponse = mockLockResponse(List.of());
+
+        Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
+        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(latestVersionResponse);
+        Mockito.when(datasetApi.getLocks()).thenReturn(lockResponse);
+        Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(mockDatasetVersionResponse());
+        Mockito.when(datasetApi.publish(UpdateType.minor, false)).thenReturn(mockDataMessageResponse());
+
+        var exitCode = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--datasetId", "doi:10.5072/FK2/ABC",
+            "--publishVersion", "minor",
+            "--versionNote", "Fixed title",
+            "title=New title"
+        ).exitCode();
+
+        assertThat(exitCode).isZero();
+        var inOrder = Mockito.inOrder(datasetApi);
+        inOrder.verify(datasetApi).setVersionNote("Fixed title");
+        inOrder.verify(datasetApi).publish(UpdateType.minor, false);
     }
 
     @Test

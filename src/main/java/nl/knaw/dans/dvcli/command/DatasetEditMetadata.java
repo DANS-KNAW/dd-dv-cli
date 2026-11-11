@@ -15,6 +15,7 @@
  */
 package nl.knaw.dans.dvcli.command;
 
+import io.dropwizard.util.Duration;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import nl.knaw.dans.lib.dataverse.DatasetApi;
@@ -34,6 +35,7 @@ import nl.knaw.dans.lib.dataverse.model.dataset.PrimitiveSingleValueField;
 import nl.knaw.dans.lib.dataverse.model.dataset.SingleValueField;
 import nl.knaw.dans.lib.dataverse.model.dataset.UpdateType;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.ITypeConverter;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
@@ -44,7 +46,6 @@ import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -70,10 +71,11 @@ public class DatasetEditMetadata implements Callable<Integer> {
     private static final String EXPECTED_STATE = "expectedState";
     private static final String EXPECT_IN_REVIEW = "expectInReview";
     private static final String PUBLISH_VERSION = "publishVersion";
+    private static final String VERSION_NOTE = "versionNote";
     private static final String REPLACE = "replace";
     private static final String RESULT = "result";
     private static final String MESSAGE = "message";
-    private static final Set<String> RESERVED_COLUMNS = Set.of(DATASET_ID, EXPECTED_STATE, EXPECT_IN_REVIEW, PUBLISH_VERSION, REPLACE);
+    private static final Set<String> RESERVED_COLUMNS = Set.of(DATASET_ID, EXPECTED_STATE, EXPECT_IN_REVIEW, PUBLISH_VERSION, VERSION_NOTE, REPLACE);
     private static final Set<String> RESERVED_REPORT_COLUMNS = Set.of(RESULT, MESSAGE);
     private static final Pattern FIELD_PATTERN = Pattern.compile("^(?<field>[^.\\[]+)(?:\\[(?<index>\\d+)])?(?:\\.(?<subfield>.+))?$");
     private static final long PUBLISH_POLL_INTERVAL_MS = 5000L;
@@ -94,10 +96,13 @@ public class DatasetEditMetadata implements Callable<Integer> {
     @Option(names = { "--publishVersion" }, description = "Publish as major, minor, leave-draft or no")
     private String publishVersion;
 
+    @Option(names = { "--versionNote" }, description = "Version note to set on the draft before publication")
+    private String versionNote;
+
     @Option(names = { "--replace" }, description = "Replace existing values")
     private boolean replace;
 
-    @Option(names = { "--timeout" }, defaultValue = "PT10S", description = "Timeout for publication as an ISO-8601 duration, e.g. PT30S, PT2M (default: ${DEFAULT-VALUE})")
+    @Option(names = { "--timeout" }, defaultValue = "10s", converter = TimeoutConverter.class, description = "Timeout for publication, e.g. 30s, 2m, 1h; without a unit seconds are assumed (default: ${DEFAULT-VALUE})")
     private Duration timeout;
 
     @Option(names = { "--reports-dir" }, description = "Directory for batch reports")
@@ -123,7 +128,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
     @Override
     public Integer call() {
         try {
-            if (timeout.isZero() || timeout.isNegative()) {
+            if (timeout.getQuantity() <= 0) {
                 System.err.println("--timeout must be greater than zero");
                 return 1;
             }
@@ -217,11 +222,17 @@ public class DatasetEditMetadata implements Callable<Integer> {
         log.debug("Editing {} metadata fields for dataset {} with replace={}", fieldList.getFields().size(), id, replaceExistingValues);
         datasetApi.editMetadata(fieldList, replaceExistingValues);
 
+        var note = trimToNull(effectiveValues.get(VERSION_NOTE));
+        if (note != null) {
+            log.debug("Setting version note for dataset {}", id);
+            datasetApi.setVersionNote(note);
+        }
+
         var publicationMode = PublishVersion.parse(trimToNull(effectiveValues.get(PUBLISH_VERSION)));
         if (publicationMode != PublishVersion.LEAVE_DRAFT) {
             log.info("Publishing dataset {} as {}", id, publicationMode);
             datasetApi.publish(publicationMode.toUpdateType(), false);
-            datasetApi.awaitState("RELEASED", timeout.toMillis(), PUBLISH_POLL_INTERVAL_MS);
+            datasetApi.awaitState("RELEASED", timeout.toMilliseconds(), PUBLISH_POLL_INTERVAL_MS);
         }
 
         log.info("Finished metadata edit for dataset {}", id);
@@ -242,6 +253,9 @@ public class DatasetEditMetadata implements Callable<Integer> {
         if (publishVersion != null) {
             row.put(PUBLISH_VERSION, publishVersion);
         }
+        if (versionNote != null) {
+            row.put(VERSION_NOTE, versionNote);
+        }
         row.put(REPLACE, Boolean.toString(replace));
         row.putAll(defaultFieldValues);
         return row;
@@ -257,6 +271,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         applyDefault(effectiveValues, row, EXPECTED_STATE, expectedState);
         applyDefault(effectiveValues, row, EXPECT_IN_REVIEW, expectInReview);
         applyDefault(effectiveValues, row, PUBLISH_VERSION, publishVersion);
+        applyDefault(effectiveValues, row, VERSION_NOTE, versionNote);
         applyDefault(effectiveValues, row, REPLACE, Boolean.toString(replace));
 
         for (var entry : defaultFieldValues.entrySet()) {
@@ -625,6 +640,14 @@ public class DatasetEditMetadata implements Callable<Integer> {
             if (!spec.getControlledVocabularyValues().contains(value)) {
                 throw new IllegalArgumentException("Invalid controlled vocabulary value for " + spec.getName() + ": " + value);
             }
+        }
+    }
+
+    static class TimeoutConverter implements ITypeConverter<Duration> {
+        @Override
+        public Duration convert(String value) {
+            var trimmed = value.trim();
+            return Duration.parse(trimmed.matches("\\d+") ? trimmed + "s" : trimmed);
         }
     }
 
