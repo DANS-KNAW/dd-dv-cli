@@ -21,9 +21,30 @@ The columns fall into several categories:
       `not released`
     * `expectInReview` - whether the dataset is expected to be in review: `yes` or `no`
 * Processing instructions
-    * `publishVersion` - whether to publish the dataset after editing, one of `minor`, `major` or `leave-draft`.
+    * `publishVersion` - whether to publish the dataset after editing, one of `minor`, `major`, `leave-draft` or `no` (no
+      publication action is attempted; `no` is equivalent to `leave-draft`).
+    * `versionNote` - a note to set on the draft version before publication. This involves a separate API call and requires the 
+      version note to be enabled in Dataverse. (See: <https://guides.dataverse.org/en/latest/installation/config.html#dataverse-feature-enable-version-note>{:target="_blank"}.)
     * `replace` - whether to replace existing values or add to them: `yes` or `no`
 * Field values
+    * To clear a field, add a column named `<fieldId>-CLEAR` and put `yes` in it. It is an error for a row to have a non-blank value in both `<fieldId>` and
+      `<fieldId>-CLEAR`. A blank field value without a `-CLEAR` value leaves the field unchanged.
+
+Column names are case-insensitive.
+
+### Default values
+
+The command line options `--expectedState`, `--expectInReview`, `--publishVersion`, `--versionNote`, `--replace` and `--datasetId` can be combined with
+`--input-file` (`-i`). In that case they provide default values for the corresponding columns:
+
+* If the CSV file has no column of that name, the command line value is used for every row.
+* If the column exists, the command line value is used for the rows where the cell is empty or blank. A non-blank cell always takes precedence.
+* If neither a column value nor a command line option is given, the setting is not applied (e.g., no state expectation, no publication, no version note).
+
+Field values can also be given as trailing `<column name>=<value>` arguments. These act as defaults in the same way: they are used for rows where the field
+cell is empty or the column is absent. They are not applied to a field whose `<fieldId>-CLEAR` cell contains `yes`, so that the field is cleared instead.
+
+The option `--timeout` (for example `30s`, `2m`; seconds if no unit is given) is not a column; it applies to the wait for publication of each dataset.
 
 ### Field types
 
