@@ -105,7 +105,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
     @Option(names = { "--expectInReview" }, description = "Whether an InReview lock is expected: yes, no; omit for no expectation")
     private String expectInReview;
 
-    @Option(names = { "--publishVersion" }, description = "Publish as major, minor or leave-draft")
+    @Option(names = { "--publishVersion" }, description = "Publish as major, minor or leave-draft (no is a synonym for leave-draft)")
     private String publishVersion;
 
     @Option(names = { "--versionNote" }, description = "Version note to set on the draft before publication")
@@ -119,6 +119,9 @@ public class DatasetEditMetadata implements Callable<Integer> {
 
     @Option(names = { "--timeout" }, defaultValue = "10s", converter = TimeoutConverter.class, description = "Timeout for publication, e.g. 30s, 2m, 1h; without a unit seconds are assumed (default: ${DEFAULT-VALUE})")
     private Duration timeout;
+
+    @Option(names = { "--wait-between-rows" }, converter = TimeoutConverter.class, description = "Time to wait after each processed row, except the last, e.g. 30s, 2m; without a unit seconds are assumed; only allowed together with --input-file (default: no wait)")
+    private Duration waitBetweenRows;
 
     @Option(names = { "--reports-dir" }, description = "Directory for batch reports")
     private Path reportsDir;
@@ -145,6 +148,15 @@ public class DatasetEditMetadata implements Callable<Integer> {
         try {
             if (timeout.getQuantity() <= 0) {
                 System.err.println("--timeout must be greater than zero");
+                return 1;
+            }
+
+            if (waitBetweenRows != null && inputFile == null) {
+                System.err.println("--wait-between-rows can only be used together with --input-file");
+                return 1;
+            }
+            if (waitBetweenRows != null && waitBetweenRows.getQuantity() < 0) {
+                System.err.println("--wait-between-rows must not be negative");
                 return 1;
             }
 
@@ -191,7 +203,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
                     }
                 }
 
-                var summary = batchProcessor.process(row -> processRow(row, defaultFieldValues, fieldSpecs));
+                var summary = batchProcessor.process(row -> processRow(row, defaultFieldValues, fieldSpecs), waitBetweenRows == null ? 0 : waitBetweenRows.toMilliseconds());
                 log.info("Finished: {} ok, {} failed, {} skipped", summary.getOkCount(), summary.getFailedCount(), summary.getSkippedCount());
                 return summary.getFailedCount() == 0 ? 0 : 1;
             }
@@ -718,7 +730,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
             return switch (value.toLowerCase(Locale.ROOT)) {
                 case "minor" -> MINOR;
                 case "major" -> MAJOR;
-                case "leave-draft" -> LEAVE_DRAFT;
+                case "leave-draft", "no" -> LEAVE_DRAFT;
                 default -> throw new IllegalArgumentException("Invalid publishVersion: " + value);
             };
         }

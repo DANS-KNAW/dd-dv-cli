@@ -30,7 +30,7 @@ The columns fall into several categories:
     * `expectInReview` - whether the dataset is expected to be in review: `yes` or `no`
 * Processing instructions
     * `publishVersion` - whether to publish the dataset after editing, one of `minor`, `major` or `leave-draft` (no
-      publication action is attempted).
+      publication action is attempted) or `no` (a synonym for `leave-draft`).
     * `versionNote` - a note to set on the draft version before publication. This involves a separate API call and requires the
       version note to be enabled in Dataverse. (See [Enabling version notes]{:target="_blank"}.)
     * `replace` - whether to replace existing values or add to them: `yes` or `no`
@@ -71,6 +71,8 @@ command line together with `--input-file` is an error. Blank and skip-code cells
 ### Other options
 
 The option `--timeout` (for example `30s`, `2m`; seconds if no unit is given) is not a column; it applies to the wait for publication of each dataset. The
+option `--wait-between-rows` (same format as `--timeout`, default no wait; only allowed together with `--input-file`) is not a column either; it sets the time to wait after each processed row, except the
+last one, e.g., to throttle the load on the Dataverse instance. The
 option `--skip-code` (default `!skip`) is not a column either; it sets the cell value that marks a field as not to be changed.
 
 ### Running without a CSV input file

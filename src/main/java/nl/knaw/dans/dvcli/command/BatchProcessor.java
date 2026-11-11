@@ -181,6 +181,10 @@ public class BatchProcessor implements Closeable {
     }
 
     public Summary process(RowHandler handler) throws IOException {
+        return process(handler, 0);
+    }
+
+    public Summary process(RowHandler handler, long waitBetweenRowsMillis) throws IOException {
         int okCount = 0;
         int failedCount = 0;
         int skippedCount = 0;
@@ -214,6 +218,16 @@ public class BatchProcessor implements Closeable {
             printer.printRecord(output);
             printer.flush();
             log.debug("Finished batch row {} with status {}", row.getRowNumber(), result.getStatus());
+
+            if (waitBetweenRowsMillis > 0 && rows.hasNext()) {
+                try {
+                    Thread.sleep(waitBetweenRowsMillis);
+                }
+                catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Interrupted while waiting between rows", e);
+                }
+            }
         }
 
         return new Summary(okCount, failedCount, skippedCount);

@@ -59,9 +59,11 @@ public class DatasetEditMetadataTest {
         assertThatThrownBy(() -> DatasetEditMetadata.ReviewExpectation.parse("either"))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessage("Invalid expectInReview: either");
-        assertThatThrownBy(() -> DatasetEditMetadata.PublishVersion.parse("no"))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessage("Invalid publishVersion: no");
+    }
+
+    @Test
+    void publishVersion_no_is_synonym_for_leave_draft() {
+        assertThat(DatasetEditMetadata.PublishVersion.parse("no")).isEqualTo(DatasetEditMetadata.PublishVersion.LEAVE_DRAFT);
     }
 
     @Test
