@@ -583,6 +583,26 @@ public class DatasetEditMetadataTest {
     }
 
     @Test
+    void dataset_edit_metadata_rejects_identifier_options_together_with_input_file() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var inputFile = tempDir.resolve("input.csv");
+        Files.writeString(inputFile, """
+            title
+            T
+            """);
+
+        var result = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--input-file", inputFile.toString(),
+            "--pid", "doi:10.5072/FK2/ABC"
+        );
+
+        assertThat(result.exitCode()).isEqualTo(1);
+        assertThat(result.stderr()).contains("cannot be used together with --input-file");
+        Mockito.verifyNoInteractions(dataverseClient);
+    }
+
+    @Test
     void dataset_edit_metadata_rejects_field_arguments_together_with_input_file() throws Exception {
         var dataverseClient = Mockito.mock(DataverseClient.class);
         var inputFile = tempDir.resolve("input.csv");

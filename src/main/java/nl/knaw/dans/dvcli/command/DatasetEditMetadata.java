@@ -153,6 +153,10 @@ public class DatasetEditMetadata implements Callable<Integer> {
                 System.err.println("--datasetId, --pid and --databaseId are mutually exclusive");
                 return 1;
             }
+            if (inputFile != null && idOptionCount > 0) {
+                System.err.println("--datasetId, --pid and --databaseId cannot be used together with --input-file; put the identifiers in the input file");
+                return 1;
+            }
             if (inputFile == null && idOptionCount == 0) {
                 System.err.println("Either --input-file or one of --datasetId, --pid, --databaseId is required");
                 return 1;
@@ -181,7 +185,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
                         System.err.println("Input file must contain only one of the columns datasetId, pid and databaseId");
                         return 1;
                     }
-                    if (idColumnCount == 0 && idOptionCount == 0) {
+                    if (idColumnCount == 0) {
                         System.err.println("Input file must contain one of the columns datasetId, pid and databaseId");
                         return 1;
                     }
@@ -323,8 +327,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
             var column = RESERVED_COLUMNS.stream().filter(name::equalsIgnoreCase).findFirst().orElse(name);
             effectiveValues.put(column, value);
         });
-        var rowHasId = ID_COLUMNS.stream().anyMatch(column -> row.hasColumn(column) && !isBlank(row.getValue(column)));
-        if (!rowHasId) {
+        if (inputFile == null) {
             applyDefault(effectiveValues, row, DATASET_ID, datasetId);
             applyDefault(effectiveValues, row, PID, pid);
             applyDefault(effectiveValues, row, DATABASE_ID, databaseId);

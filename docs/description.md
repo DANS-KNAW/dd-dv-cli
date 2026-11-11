@@ -20,7 +20,8 @@ The columns fall into several categories:
     * `databaseId` - the database ID of the dataset, consisting of digits only
 
       The input file must contain exactly one of these three columns (column names are case-insensitive); they are mutually exclusive. Each row must have a
-      value in that column, unless a command line identifier option provides a default (see below). Use `pid` or `databaseId` instead of `datasetId` if you want
+      value in that column; there is no default identifier (the `--datasetId`, `--pid` and `--databaseId` options cannot be used together with an input file).
+      Use `pid` or `databaseId` instead of `datasetId` if you want
       the identifier to be validated against its expected format.
 
 * Preconditions
@@ -31,8 +32,7 @@ The columns fall into several categories:
     * `publishVersion` - whether to publish the dataset after editing, one of `minor`, `major` or `leave-draft` (no
       publication action is attempted).
     * `versionNote` - a note to set on the draft version before publication. This involves a separate API call and requires the
-      version note to be enabled in Dataverse. (See: <https://guides.dataverse.org/en/latest/installation/config.html#dataverse-feature-enable-version-note>{:
-      target="_blank"}.)
+      version note to be enabled in Dataverse. (See [Enabling version notes]{:target="_blank"}.)
     * `replace` - whether to replace existing values or add to them: `yes` or `no`
 * Field values
     * An empty cell leaves the field unchanged if `replace` is `no`, and removes the field's value(s) if `replace` is `yes`.
@@ -41,6 +41,8 @@ The columns fall into several categories:
       code with the `--skip-code` option.
 
 Column names are case-insensitive.
+
+[Enabling version notes]: https://guides.dataverse.org/en/latest/installation/config.html#dataverse-feature-enable-version-note
 
 ### Field types
 
@@ -56,13 +58,11 @@ The names of the field value columns depend on the metadata blocks that are avai
 
 ### Default values
 
-The command line options `--expectedState`, `--expectInReview`, `--publishVersion`, `--versionNote`, `--replace` and one of `--datasetId`, `--pid` or
-`--databaseId` can be combined with
+The command line options `--expectedState`, `--expectInReview`, `--publishVersion`, `--versionNote` and `--replace` can be combined with
 `--input-file` (`-i`). In that case they provide default values for the corresponding columns:
 
 * If the CSV file has no column of that name, the command line value is used for every row.
 * If the column exists, the command line value is used for the rows where the cell is empty or blank. A non-blank cell always takes precedence.
-* An identifier option is only used for rows that have no value in any of the three identifier columns.
 * If neither a column value nor a command line option is given, the setting is not applied (e.g., no state expectation, no publication, no version note).
 
 Field values have no defaults. When an input file is used, field values can only be provided in the file; specifying `<column name>=<value>` arguments on the
@@ -77,7 +77,7 @@ option `--skip-code` (default `!skip`) is not a column either; it sets the cell 
 
 When testing, it can be useful to specify a row directly on the command-line, without going to the trouble of first saving it into a CSV file. The columns for
 dataset identifier, preconditions and processing instructions all have their command line equivalent, e.g., `--datasetId`, `--pid`, `--databaseId` (mutually
-exclusive), `--expectedState`, etc. Field values
+exclusive, and exactly one is required when no input file is used), `--expectedState`, etc. Field values
 can be specified on the command line as trailing arguments (only when no input file is used) in the format `<column name>=<value>`. Note that you will need to
 enclose the whole argument in
 quotes if the value contains spaces, or if the name has an index, e.g., `'myField[1]=longer value with spaces'`.
