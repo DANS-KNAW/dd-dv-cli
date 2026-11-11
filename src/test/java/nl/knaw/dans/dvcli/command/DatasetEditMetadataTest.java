@@ -40,6 +40,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +60,20 @@ public class DatasetEditMetadataTest {
         assertThatThrownBy(() -> DatasetEditMetadata.ReviewExpectation.parse("either"))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessage("Invalid expectInReview: either");
+        assertThat(DatasetEditMetadata.PublishVersion.parse("no"))
+            .isEqualTo(DatasetEditMetadata.PublishVersion.LEAVE_DRAFT);
+    }
+
+    @Test
+    void timeout_requires_an_explicit_unit_and_accepts_common_units() {
+        var converter = new DatasetEditMetadata.TimeoutConverter();
+
+        assertThat(converter.convert("10s")).isEqualTo(Duration.ofSeconds(10));
+        assertThat(converter.convert("2m")).isEqualTo(Duration.ofMinutes(2));
+        assertThat(converter.convert("1.5h")).isEqualTo(Duration.ofMinutes(90));
+        assertThatThrownBy(() -> converter.convert("10"))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("Invalid timeout: 10");
     }
 
     @Test
@@ -229,7 +244,7 @@ public class DatasetEditMetadataTest {
 
         assertThat(exitCode).isZero();
         Mockito.verify(datasetApi).publish(UpdateType.minor, false);
-        Mockito.verify(datasetApi).awaitState("RELEASED", 600000L, 5000L);
+        Mockito.verify(datasetApi).awaitState("RELEASED", 10000L, 5000L);
     }
 
     @Test
@@ -254,7 +269,7 @@ public class DatasetEditMetadataTest {
 
         assertThat(exitCode).isZero();
         Mockito.verify(datasetApi).publish(UpdateType.major, false);
-        Mockito.verify(datasetApi).awaitState("RELEASED", 600000L, 5000L);
+        Mockito.verify(datasetApi).awaitState("RELEASED", 10000L, 5000L);
     }
 
     @Test
@@ -280,6 +295,89 @@ public class DatasetEditMetadataTest {
         Mockito.verify(datasetApi).editMetadata(Mockito.any(FieldList.class), Mockito.eq(false));
         Mockito.verify(datasetApi, Mockito.never()).publish(Mockito.any(), Mockito.anyBoolean());
         Mockito.verify(datasetApi, Mockito.never()).awaitState(Mockito.anyString(), Mockito.anyLong(), Mockito.anyLong());
+    }
+
+    @Test
+    void dataset_edit_metadata_uses_cli_defaults_for_blank_instruction_columns() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var datasetApi = Mockito.mock(DatasetApi.class);
+        var inputFile = tempDir.resolve("defaults.csv");
+        Files.writeString(inputFile, """
+            datasetId,expectedState,publishVersion,title
+            doi:10.5072/FK2/ABC,,,
+            """);
+
+        Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
+        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(mockLatestVersionResponse("RELEASED"));
+        Mockito.when(datasetApi.getLocks()).thenReturn(mockLockResponse(List.of()));
+        Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(mockDatasetVersionResponse());
+        Mockito.when(datasetApi.publish(UpdateType.minor, false)).thenReturn(mockDataMessageResponse());
+
+        var result = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--input-file", inputFile.toString(),
+            "--expectedState", "released",
+            "--publishVersion", "minor",
+            "title=Default title"
+        );
+
+        assertThat(result.exitCode()).isZero();
+        var fields = ArgumentCaptor.forClass(FieldList.class);
+        Mockito.verify(datasetApi).editMetadata(fields.capture(), Mockito.eq(false));
+        assertThat(((PrimitiveSingleValueField) fields.getValue().getFields().get(0)).getValue()).isEqualTo("Default title");
+        Mockito.verify(datasetApi).publish(UpdateType.minor, false);
+        Mockito.verify(datasetApi).awaitState("RELEASED", 10000L, 5000L);
+    }
+
+    @Test
+    void dataset_edit_metadata_clears_a_field_with_a_clear_column() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var datasetApi = Mockito.mock(DatasetApi.class);
+        var inputFile = tempDir.resolve("clear.csv");
+        Files.writeString(inputFile, """
+            datasetId,subject-CLEAR
+            doi:10.5072/FK2/ABC,YeS
+            """);
+
+        Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
+        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(mockLatestVersionResponse("RELEASED"));
+        Mockito.when(datasetApi.getLocks()).thenReturn(mockLockResponse(List.of()));
+        Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(mockDatasetVersionResponse());
+
+        var result = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--input-file", inputFile.toString()
+        );
+
+        assertThat(result.exitCode()).isZero();
+        var captor = ArgumentCaptor.forClass(FieldList.class);
+        Mockito.verify(datasetApi).editMetadata(captor.capture(), Mockito.eq(false));
+        assertThat(captor.getValue().getFields()).hasSize(1);
+        assertThat(((ControlledMultiValueField) captor.getValue().getFields().get(0)).getValue()).isEmpty();
+    }
+
+    @Test
+    void dataset_edit_metadata_rejects_a_value_and_clear_for_the_same_field() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var datasetApi = Mockito.mock(DatasetApi.class);
+        var inputFile = tempDir.resolve("conflict.csv");
+        Files.writeString(inputFile, """
+            datasetId,title,title-CLEAR
+            doi:10.5072/FK2/ABC,New title,yes
+            """);
+
+        Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
+        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(mockLatestVersionResponse("RELEASED"));
+        Mockito.when(datasetApi.getLocks()).thenReturn(mockLockResponse(List.of()));
+
+        var result = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--input-file", inputFile.toString()
+        );
+
+        assertThat(result.exitCode()).isEqualTo(1);
+        assertThat(result.stdout()).contains("FAILED");
+        Mockito.verify(datasetApi, Mockito.never()).editMetadata(Mockito.any(FieldList.class), Mockito.anyBoolean());
     }
 
     @Test

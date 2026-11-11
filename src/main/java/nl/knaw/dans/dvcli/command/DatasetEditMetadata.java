@@ -41,6 +41,7 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.Writer;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -57,6 +58,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 @Command(
@@ -91,14 +93,14 @@ public class DatasetEditMetadata implements Callable<Integer> {
     @Option(names = { "--expectInReview" }, description = "Whether an InReview lock is expected: yes, no; omit for no expectation")
     private String expectInReview;
 
-    @Option(names = { "--publishVersion" }, description = "Publish as major, minor or leave-draft")
+    @Option(names = { "--publishVersion" }, description = "Publish as major, minor, leave-draft or no")
     private String publishVersion;
 
     @Option(names = { "--replace" }, description = "Replace existing values")
     private boolean replace;
 
-    @Option(names = { "--timeout" }, defaultValue = "10", description = "Timeout in minutes for publication")
-    private long timeoutInMinutes;
+    @Option(names = { "--timeout" }, defaultValue = "10s", converter = TimeoutConverter.class, description = "Timeout for publication (default unit: seconds)")
+    private Duration timeout;
 
     @Option(names = { "--reports-dir" }, description = "Directory for batch reports")
     private Path reportsDir;
@@ -216,7 +218,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         if (publicationMode != PublishVersion.LEAVE_DRAFT) {
             log.info("Publishing dataset {} as {}", id, publicationMode);
             datasetApi.publish(publicationMode.toUpdateType(), false);
-            datasetApi.awaitState("RELEASED", Duration.ofMinutes(timeoutInMinutes).toMillis(), PUBLISH_POLL_INTERVAL_MS);
+            datasetApi.awaitState("RELEASED", timeout.toMillis(), PUBLISH_POLL_INTERVAL_MS);
         }
 
         log.info("Finished metadata edit for dataset {}", id);
@@ -255,7 +257,8 @@ public class DatasetEditMetadata implements Callable<Integer> {
         applyDefault(effectiveValues, row, REPLACE, Boolean.toString(replace));
 
         for (var entry : defaultFieldValues.entrySet()) {
-            if (!row.hasColumn(entry.getKey())) {
+            var clearValue = trimToNull(row.getValue(entry.getKey() + "-CLEAR"));
+            if (!"yes".equalsIgnoreCase(clearValue) && (!row.hasColumn(entry.getKey()) || isBlank(row.getValue(entry.getKey())))) {
                 effectiveValues.put(entry.getKey(), entry.getValue());
             }
         }
@@ -263,7 +266,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
     }
 
     private void applyDefault(Map<String, String> effectiveValues, BatchProcessor.Row row, String column, String value) {
-        if (!row.hasColumn(column) && value != null) {
+        if (value != null && (!row.hasColumn(column) || isBlank(row.getValue(column)))) {
             effectiveValues.put(column, value);
         }
     }
@@ -302,6 +305,32 @@ public class DatasetEditMetadata implements Callable<Integer> {
         var accumulators = new LinkedHashMap<String, FieldValueAccumulator>();
 
         for (var entry : editableValues.entrySet()) {
+            if (isClearColumn(entry.getKey())) {
+                var clearFieldName = entry.getKey().substring(0, entry.getKey().length() - "-CLEAR".length());
+                if (!"yes".equalsIgnoreCase(entry.getValue().trim())) {
+                    if ("no".equalsIgnoreCase(entry.getValue().trim())) {
+                        continue;
+                    }
+                    throw new IllegalArgumentException("Invalid value for " + entry.getKey() + ": " + entry.getValue());
+                }
+
+                var clearFieldSpec = getFieldSpecIgnoreCase(fieldSpecs, clearFieldName);
+                if (clearFieldSpec == null) {
+                    throw new IllegalArgumentException("Unknown metadata field: " + clearFieldName);
+                }
+                boolean hasValue = editableValues.entrySet().stream()
+                    .filter(valueEntry -> !isClearColumn(valueEntry.getKey()))
+                    .filter(valueEntry -> trimToNull(valueEntry.getValue()) != null)
+                    .anyMatch(valueEntry -> rootFieldName(valueEntry.getKey()).equalsIgnoreCase(clearFieldSpec.getName()));
+                if (hasValue) {
+                    throw new IllegalArgumentException("Cannot specify both " + clearFieldName + " and " + entry.getKey());
+                }
+
+                var accumulator = accumulators.computeIfAbsent(clearFieldSpec.getName(), ignored -> new FieldValueAccumulator(clearFieldSpec));
+                accumulator.clear(entry.getKey());
+                continue;
+            }
+
             var matcher = FIELD_PATTERN.matcher(entry.getKey());
             if (!matcher.matches()) {
                 throw new IllegalArgumentException("Invalid field column: " + entry.getKey());
@@ -335,6 +364,16 @@ public class DatasetEditMetadata implements Callable<Integer> {
             fieldList.add(accumulator.toMetadataField());
         }
         return fieldList;
+    }
+
+    private static boolean isClearColumn(String columnName) {
+        return columnName.length() >= "-CLEAR".length()
+            && columnName.regionMatches(true, columnName.length() - "-CLEAR".length(), "-CLEAR", 0, "-CLEAR".length());
+    }
+
+    private static String rootFieldName(String columnName) {
+        var matcher = FIELD_PATTERN.matcher(columnName);
+        return matcher.matches() ? matcher.group("field") : columnName;
     }
 
     private int determineIndex(DatasetFieldType spec, String indexText, String columnName) {
@@ -446,6 +485,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         private final DatasetFieldType fieldSpec;
         private final Map<Integer, String> simpleValues = new TreeMap<>();
         private final Map<Integer, Map<String, String>> compoundValues = new TreeMap<>();
+        private boolean clear;
 
         void addValue(int index, String value, String columnName) {
             if ("compound".equals(fieldSpec.getTypeClass())) {
@@ -475,11 +515,41 @@ public class DatasetEditMetadata implements Callable<Integer> {
             }
         }
 
+        void clear(String columnName) {
+            if (clear || !simpleValues.isEmpty() || !compoundValues.isEmpty()) {
+                throw new IllegalArgumentException("Duplicate or conflicting clear for " + columnName);
+            }
+            clear = true;
+        }
+
         MetadataField toMetadataField() {
+            if (clear) {
+                return clearField();
+            }
             if ("compound".equals(fieldSpec.getTypeClass())) {
                 return toCompoundField();
             }
             return toSimpleField();
+        }
+
+        private MetadataField clearField() {
+            if ("compound".equals(fieldSpec.getTypeClass())) {
+                return fieldSpec.isMultiple()
+                    ? new CompoundMultiValueField(fieldSpec.getName(), List.of())
+                    : new CompoundSingleValueField(fieldSpec.getName(), Map.of());
+            }
+            if (fieldSpec.isMultiple()) {
+                return switch (fieldSpec.getTypeClass()) {
+                    case "primitive" -> new PrimitiveMultiValueField(fieldSpec.getName(), List.of());
+                    case "controlledVocabulary" -> new ControlledMultiValueField(fieldSpec.getName(), List.of());
+                    default -> throw new IllegalArgumentException("Unsupported field typeClass for " + fieldSpec.getName() + ": " + fieldSpec.getTypeClass());
+                };
+            }
+            return switch (fieldSpec.getTypeClass()) {
+                case "primitive" -> new PrimitiveSingleValueField(fieldSpec.getName(), "");
+                case "controlledVocabulary" -> new ControlledSingleValueField(fieldSpec.getName(), "");
+                default -> throw new IllegalArgumentException("Unsupported field typeClass for " + fieldSpec.getName() + ": " + fieldSpec.getTypeClass());
+            };
         }
 
         private MetadataField toSimpleField() {
@@ -555,6 +625,40 @@ public class DatasetEditMetadata implements Callable<Integer> {
         }
     }
 
+    public static class TimeoutConverter implements picocli.CommandLine.ITypeConverter<Duration> {
+        private static final Pattern TIME_VALUE = Pattern.compile("^(?<amount>\\d+(?:\\.\\d+)?)(?<unit>ns|us|ms|s|m|h|d)$", Pattern.CASE_INSENSITIVE);
+
+        @Override
+        public Duration convert(String value) {
+            var matcher = TIME_VALUE.matcher(value.trim());
+            if (!matcher.matches()) {
+                throw new IllegalArgumentException("Invalid timeout: " + value);
+            }
+            var amount = new BigDecimal(matcher.group("amount"));
+            var unit = matcher.group("unit");
+            var nanosPerUnit = switch (unit.toLowerCase(Locale.ROOT)) {
+                case "ns" -> BigDecimal.ONE;
+                case "us" -> BigDecimal.valueOf(1_000L);
+                case "ms" -> BigDecimal.valueOf(1_000_000L);
+                case "s" -> BigDecimal.valueOf(TimeUnit.SECONDS.toNanos(1));
+                case "m" -> BigDecimal.valueOf(TimeUnit.MINUTES.toNanos(1));
+                case "h" -> BigDecimal.valueOf(TimeUnit.HOURS.toNanos(1));
+                case "d" -> BigDecimal.valueOf(TimeUnit.DAYS.toNanos(1));
+                default -> throw new IllegalArgumentException("Invalid timeout unit: " + unit);
+            };
+            try {
+                var duration = Duration.ofNanos(amount.multiply(nanosPerUnit).longValueExact());
+                if (duration.isZero() || duration.isNegative()) {
+                    throw new IllegalArgumentException("Timeout must be greater than zero: " + value);
+                }
+                return duration;
+            }
+            catch (ArithmeticException e) {
+                throw new IllegalArgumentException("Invalid timeout: " + value, e);
+            }
+        }
+    }
+
     enum PublishVersion {
         MINOR,
         MAJOR,
@@ -568,7 +672,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
             return switch (value.toLowerCase(Locale.ROOT)) {
                 case "minor" -> MINOR;
                 case "major" -> MAJOR;
-                case "leave-draft" -> LEAVE_DRAFT;
+                case "leave-draft", "no" -> LEAVE_DRAFT;
                 default -> throw new IllegalArgumentException("Invalid publishVersion: " + value);
             };
         }
