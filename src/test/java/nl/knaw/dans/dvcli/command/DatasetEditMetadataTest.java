@@ -446,6 +446,19 @@ public class DatasetEditMetadataTest {
     }
 
     @Test
+    void field_value_accumulator_rejects_mixing_skip_and_values_in_either_order() {
+        var subject = createFieldSpecs().get("subject");
+
+        var valueThenSkip = new DatasetEditMetadata.FieldValueAccumulator(subject);
+        valueThenSkip.addValue(1, "Chemistry", "subject");
+        assertThatThrownBy(valueThenSkip::markSkipped).isInstanceOf(IllegalArgumentException.class);
+
+        var skipThenValue = new DatasetEditMetadata.FieldValueAccumulator(subject);
+        skipThenValue.markSkipped();
+        assertThatThrownBy(() -> skipThenValue.addValue(2, "Chemistry", "subject[2]")).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void dataset_edit_metadata_uses_a_custom_skip_code() throws Exception {
         var dataverseClient = Mockito.mock(DataverseClient.class);
         var datasetApi = Mockito.mock(DatasetApi.class);

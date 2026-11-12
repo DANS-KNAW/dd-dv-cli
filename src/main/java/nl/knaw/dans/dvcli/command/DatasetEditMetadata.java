@@ -576,6 +576,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         private boolean skipped;
 
         void addValue(int index, String value, String columnName) {
+            checkNotSkipped(columnName);
             if ("compound".equals(fieldSpec.getTypeClass())) {
                 throw new IllegalArgumentException("Compound field requires subfields: " + columnName);
             }
@@ -585,6 +586,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         }
 
         void addSubfieldValue(int index, String subfieldName, String value, String columnName) {
+            checkNotSkipped(columnName);
             if (!"compound".equals(fieldSpec.getTypeClass())) {
                 throw new IllegalArgumentException("Subfield not allowed for " + columnName);
             }
@@ -608,7 +610,16 @@ public class DatasetEditMetadata implements Callable<Integer> {
         }
 
         void markSkipped() {
+            if (!simpleValues.isEmpty() || !compoundValues.isEmpty()) {
+                throw new IllegalArgumentException("Cannot mix skip code and other values in field " + fieldSpec.getName());
+            }
             skipped = true;
+        }
+
+        private void checkNotSkipped(String columnName) {
+            if (skipped) {
+                throw new IllegalArgumentException("Cannot mix skip code and other values in field " + fieldSpec.getName() + " (column " + columnName + ")");
+            }
         }
 
         boolean isChanged() {
