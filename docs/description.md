@@ -45,13 +45,9 @@ Column names are case-insensitive.
 !!! note "Avoiding conflicts between special columns and fields"
 
     If a metadata field has the same name as one of the non-field columns above (e.g., `pid`), prefix the name of the non-field column with `*`, e.g.,
-    `*pid`. The prefix is optional otherwise. If both `*pid` and `pid` are present, the first is the dataset's PID and the second is a metadata field. 
-
-
-
-
-
-
+    `*pid`. The prefix is optional otherwise. If both `*pid` and `pid` are present, the first is the dataset's PID and the second is a metadata field. Field 
+    names must not start with `*`. The `*result` and `*message` columns in the [report](#report) always have the `*` preemting any possible conflicts with
+    field names.
 
 
 [Enabling version notes]: https://guides.dataverse.org/en/latest/installation/config.html#dataverse-feature-enable-version-note
@@ -95,7 +91,7 @@ When running with a CSV input file, a report will be written to a file in the di
 optional `*` is kept or absent as it was), plus the extra columns `*result` and `*message`, which always have the `*`. When running without a CSV input file,
 the report is written to the standard output.
 
-The result column contains one of:
+The `*result` column contains one of:
 
 - `OK`: the row was processed successfully
 - `FAILED`: an error occurred while processing the row
