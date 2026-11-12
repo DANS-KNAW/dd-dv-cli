@@ -106,6 +106,7 @@ public class BatchProcessor implements Closeable {
     }
 
     private final CSVPrinter printer;
+    @Getter
     private final List<String> headers;
     private final Iterator<Map<String, String>> rows;
     private final Closeable closeable;
@@ -174,10 +175,6 @@ public class BatchProcessor implements Closeable {
         List<Map<String, String>> rows = List.of(new LinkedHashMap<>(row));
         return new BatchProcessor(headers, rows.iterator(), () -> {
         }, writer);
-    }
-
-    public List<String> getHeaders() {
-        return headers;
     }
 
     public Summary process(RowHandler handler) throws IOException {
