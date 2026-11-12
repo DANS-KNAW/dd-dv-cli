@@ -50,6 +50,10 @@ Column names are case-insensitive.
 
 
 
+
+
+
+
 [Enabling version notes]: https://guides.dataverse.org/en/latest/installation/config.html#dataverse-feature-enable-version-note
 
 ### Field types
@@ -84,10 +88,14 @@ to wait after each processed row, except the
 last one, e.g., to throttle the load on the Dataverse instance. The
 option `--skip-code` (default `!skip`) is not a column either; it sets the cell value that marks a field as not to be changed.
 
-### Report file
+### Report
 
-The report file is a CSV file with the same columns as the input file, plus two additional columns `*result` and `*message` at the end. The `*result` column
-contains the result of the processing of each row. The status is one of the following:
+When running with a CSV input file, a report will be written to a file in the directory configured in `editMetadata.reportsDir` in `.dv.yml`. The
+`--reports-dir` option can be used to override this location. The report contains a copy of each line, with the column names exactly as in the input (so an
+optional `*` is kept or absent as it was), plus the extra columns `*result` and `*message`, which always have the `*`. When running without a CSV input file,
+the report is written to the standard output.
+
+The result column contains one of:
 
 - `OK`: the row was processed successfully
 - `FAILED`: an error occurred while processing the row
@@ -101,13 +109,6 @@ exclusive, and exactly one is required when no input file is used), `--expectedS
 can be specified on the command line as trailing arguments (only when no input file is used) in the format `<column name>=<value>`. Note that you will need to
 enclose the whole argument in
 quotes if the value contains spaces, or if the name has an index, e.g., `'myField[1]=longer value with spaces'`.
-
-### Report
-
-When running with a CSV input file, a report will be written to a file in the directory configured in `editMetadata.reportsDir` in `.dv.yml`. The `--report-dir`
-option can be used to override this location. The report contains a copy of each line with the extra columns `*result` and `*message`. When running without a
-CSV
-input file, the report is written to the standard output.
 
 [Dataverse API]: {{ dataverse_api_url }}
 [dans-dataverse-client-lib]: {{ dans_dataverse_client_lib_url }}
