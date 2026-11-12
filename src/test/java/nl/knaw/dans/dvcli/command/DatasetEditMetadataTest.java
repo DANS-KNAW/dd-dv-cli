@@ -166,7 +166,7 @@ public class DatasetEditMetadataTest {
         var latestVersionResponse = mockLatestVersionResponse("RELEASED");
         var lockResponse = mockLockResponse(List.of());
         Files.writeString(inputFile, """
-            DATASETID,TiTlE
+            *DATASETID,TiTlE
             doi:10.5072/FK2/ABC,CSV title
             """);
 
@@ -185,9 +185,63 @@ public class DatasetEditMetadataTest {
         assertThat(result.exitCode()).isZero();
         var reportFile = singleReportFileIn(reportsDir);
         assertThat(reportFile.getFileName().toString()).startsWith("input-").endsWith(".csv");
-        assertThat(Files.readString(reportFile)).contains("DATASETID,TiTlE,result,message")
+        assertThat(Files.readString(reportFile)).contains("*DATASETID,TiTlE,*result,*message")
             .contains("doi:10.5072/FK2/ABC,CSV title,OK,Metadata edited");
         Mockito.verify(datasetApi).editMetadata(Mockito.any(FieldList.class), Mockito.eq(false));
+    }
+
+    @Test
+    void dataset_edit_metadata_accepts_special_columns_without_star() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var datasetApi = Mockito.mock(DatasetApi.class);
+        var inputFile = tempDir.resolve("unstarred.csv");
+        Files.writeString(inputFile, """
+            pid,title
+            doi:10.5072/FK2/ABC,CSV title
+            """);
+        Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
+        var latestVersionResponse = mockLatestVersionResponse("RELEASED");
+        var lockResponse = mockLockResponse(List.of());
+        var editResponse = mockDatasetVersionResponse();
+        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(latestVersionResponse);
+        Mockito.when(datasetApi.getLocks()).thenReturn(lockResponse);
+        Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(editResponse);
+
+        var result = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--input-file", inputFile.toString());
+
+        assertThat(result.exitCode()).isZero();
+        assertThat(result.stdout()).contains("pid,title,*result,*message").contains("doi:10.5072/FK2/ABC,CSV title,OK,Metadata edited");
+    }
+
+    @Test
+    void dataset_edit_metadata_treats_unstarred_column_as_field_when_starred_column_is_present() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var datasetApi = Mockito.mock(DatasetApi.class);
+        var inputFile = tempDir.resolve("conflict.csv");
+        Files.writeString(inputFile, """
+            *pid,pid
+            doi:10.5072/FK2/ABC,field value
+            """);
+        Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
+        var latestVersionResponse = mockLatestVersionResponse("RELEASED");
+        var lockResponse = mockLockResponse(List.of());
+        var editResponse = mockDatasetVersionResponse();
+        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(latestVersionResponse);
+        Mockito.when(datasetApi.getLocks()).thenReturn(lockResponse);
+        Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(editResponse);
+        var pidField = new DatasetFieldType();
+        pidField.setName("pid");
+        pidField.setTypeClass("primitive");
+        pidField.setMultiple(false);
+
+        var result = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, () -> Map.of("pid", pidField), null)),
+            "--input-file", inputFile.toString());
+
+        assertThat(result.exitCode()).isZero();
+        assertThat(result.stdout()).contains("doi:10.5072/FK2/ABC,field value,OK,Metadata edited");
     }
 
     @Test
@@ -199,7 +253,7 @@ public class DatasetEditMetadataTest {
         var latestVersionResponse = mockLatestVersionResponse("RELEASED");
         var lockResponse = mockLockResponse(List.of());
         Files.writeString(inputFile, """
-            datasetId,title
+            *datasetId,title
             doi:10.5072/FK2/ABC,New title
             """);
 
@@ -327,7 +381,7 @@ public class DatasetEditMetadataTest {
         var datasetApi = Mockito.mock(DatasetApi.class);
         var inputFile = tempDir.resolve("defaults.csv");
         Files.writeString(inputFile, """
-            datasetId,expectedState,publishVersion,title
+            *datasetId,*expectedState,*publishVersion,title
             doi:10.5072/FK2/ABC,,,Default title
             """);
 
@@ -362,7 +416,7 @@ public class DatasetEditMetadataTest {
         var datasetApi = Mockito.mock(DatasetApi.class);
         var inputFile = tempDir.resolve("input.csv");
         Files.writeString(inputFile, """
-            datasetId,subject
+            *datasetId,subject
             doi:10.5072/FK2/ABC,
             """);
 
@@ -392,7 +446,7 @@ public class DatasetEditMetadataTest {
         var datasetApi = Mockito.mock(DatasetApi.class);
         var inputFile = tempDir.resolve("input.csv");
         Files.writeString(inputFile, """
-            datasetId,title,subject
+            *datasetId,title,subject
             doi:10.5072/FK2/ABC,New title,
             """);
 
@@ -421,7 +475,7 @@ public class DatasetEditMetadataTest {
         var datasetApi = Mockito.mock(DatasetApi.class);
         var inputFile = tempDir.resolve("input.csv");
         Files.writeString(inputFile, """
-            datasetId,title,subject
+            *datasetId,title,subject
             doi:10.5072/FK2/ABC,New title,!skip
             """);
 
@@ -464,7 +518,7 @@ public class DatasetEditMetadataTest {
         var datasetApi = Mockito.mock(DatasetApi.class);
         var inputFile = tempDir.resolve("input.csv");
         Files.writeString(inputFile, """
-            datasetId,title,subject
+            *datasetId,title,subject
             doi:10.5072/FK2/ABC,!skip,SKIP
             """);
 
@@ -493,7 +547,7 @@ public class DatasetEditMetadataTest {
         var dataverseClient = Mockito.mock(DataverseClient.class);
         var inputFile = tempDir.resolve("input.csv");
         Files.writeString(inputFile, """
-            datasetId,result
+            *datasetId,*result
             doi:10.5072/FK2/ABC,ignored
             """);
 
@@ -503,7 +557,7 @@ public class DatasetEditMetadataTest {
         );
 
         assertThat(result.exitCode()).isEqualTo(1);
-        assertThat(result.stderr()).contains("Input contains reserved column: result");
+        assertThat(result.stderr()).contains("Input contains reserved column: *result");
     }
 
     @Test
@@ -546,12 +600,12 @@ public class DatasetEditMetadataTest {
         var dataverseClient = Mockito.mock(DataverseClient.class);
         var pidFile = tempDir.resolve("pids.csv");
         Files.writeString(pidFile, """
-            pid,title
+            *pid,title
             10.5072/FK2/ABC,T
             """);
         var databaseIdFile = tempDir.resolve("database-ids.csv");
         Files.writeString(databaseIdFile, """
-            databaseId,title
+            *databaseId,title
             12a,T
             """);
 
@@ -574,7 +628,7 @@ public class DatasetEditMetadataTest {
         var dataverseClient = Mockito.mock(DataverseClient.class);
         var twoColumns = tempDir.resolve("two.csv");
         Files.writeString(twoColumns, """
-            pid,DatabaseId,title
+            *pid,*DatabaseId,title
             doi:10.5072/FK2/ABC,42,T
             """);
         var noColumns = tempDir.resolve("none.csv");
@@ -622,7 +676,7 @@ public class DatasetEditMetadataTest {
         var dataverseClient = Mockito.mock(DataverseClient.class);
         var inputFile = tempDir.resolve("input.csv");
         Files.writeString(inputFile, """
-            datasetId
+            *datasetId
             doi:10.5072/FK2/ABC
             """);
 

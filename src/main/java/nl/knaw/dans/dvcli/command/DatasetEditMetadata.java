@@ -49,6 +49,7 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -68,21 +69,19 @@ import java.util.stream.Stream;
 )
 @Slf4j
 public class DatasetEditMetadata implements Callable<Integer> {
-    private static final String DATASET_ID = "datasetId";
-    private static final String PID = "pid";
-    private static final String DATABASE_ID = "databaseId";
+    private static final String SPECIAL_COLUMN_PREFIX = "*";
+    private static final String DATASET_ID = "*datasetId";
+    private static final String PID = "*pid";
+    private static final String DATABASE_ID = "*databaseId";
     private static final List<String> ID_COLUMNS = List.of(DATASET_ID, PID, DATABASE_ID);
     private static final Pattern PID_PATTERN = Pattern.compile("^[A-Za-z][A-Za-z0-9]*:\\S.*$");
     private static final Pattern DATABASE_ID_PATTERN = Pattern.compile("^\\d+$");
-    private static final String EXPECTED_STATE = "expectedState";
-    private static final String EXPECT_IN_REVIEW = "expectInReview";
-    private static final String PUBLISH_VERSION = "publishVersion";
-    private static final String VERSION_NOTE = "versionNote";
-    private static final String REPLACE = "replace";
-    private static final String RESULT = "result";
-    private static final String MESSAGE = "message";
+    private static final String EXPECTED_STATE = "*expectedState";
+    private static final String EXPECT_IN_REVIEW = "*expectInReview";
+    private static final String PUBLISH_VERSION = "*publishVersion";
+    private static final String VERSION_NOTE = "*versionNote";
+    private static final String REPLACE = "*replace";
     private static final Set<String> RESERVED_COLUMNS = Set.of(DATASET_ID, PID, DATABASE_ID, EXPECTED_STATE, EXPECT_IN_REVIEW, PUBLISH_VERSION, VERSION_NOTE, REPLACE);
-    private static final Set<String> RESERVED_REPORT_COLUMNS = Set.of(RESULT, MESSAGE);
     private static final Pattern FIELD_PATTERN = Pattern.compile("^(?<field>[^.\\[]+)(?:\\[(?<index>\\d+)])?(?:\\.(?<subfield>.+))?$");
     private static final long PUBLISH_POLL_INTERVAL_MS = 5000L;
     private static final DateTimeFormatter REPORT_TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmmss");
@@ -188,17 +187,17 @@ public class DatasetEditMetadata implements Callable<Integer> {
             var fieldSpecs = metadataFieldSpecProvider.getFieldSpecs();
             try (var writer = createReportWriter();
                 var batchProcessor = inputFile != null
-                    ? BatchProcessor.forCsv(inputFile, writer)
-                    : BatchProcessor.forSingleRow(createSingleRow(defaultFieldValues), writer)) {
+                    ? BatchProcessor.forCsv(inputFile, writer, SPECIAL_COLUMN_PREFIX)
+                    : BatchProcessor.forSingleRow(createSingleRow(defaultFieldValues), writer, SPECIAL_COLUMN_PREFIX)) {
 
                 if (inputFile != null) {
-                    var idColumnCount = ID_COLUMNS.stream().filter(column -> containsIgnoreCase(Set.copyOf(batchProcessor.getHeaders()), column)).count();
+                    var idColumnCount = ID_COLUMNS.stream().filter(column -> batchProcessor.getHeaders().stream().anyMatch(header -> column.equals(toSpecialColumn(header, batchProcessor.getHeaders())))).count();
                     if (idColumnCount > 1) {
-                        System.err.println("Input file must contain only one of the columns datasetId, pid and databaseId");
+                        System.err.println("Input file must contain only one of the columns *datasetId, *pid and *databaseId");
                         return 1;
                     }
                     if (idColumnCount == 0) {
-                        System.err.println("Input file must contain one of the columns datasetId, pid and databaseId");
+                        System.err.println("Input file must contain one of the columns *datasetId, *pid and *databaseId");
                         return 1;
                     }
                 }
@@ -243,10 +242,10 @@ public class DatasetEditMetadata implements Callable<Integer> {
         var effectiveValues = applyDefaults(row);
         var idColumns = ID_COLUMNS.stream().filter(column -> trimToNull(effectiveValues.get(column)) != null).toList();
         if (idColumns.isEmpty()) {
-            return BatchProcessor.Result.failed("Missing dataset identifier: one of datasetId, pid or databaseId is required");
+            return BatchProcessor.Result.failed("Missing dataset identifier: one of *datasetId, *pid or *databaseId is required");
         }
         if (idColumns.size() > 1) {
-            return BatchProcessor.Result.failed("Only one of datasetId, pid and databaseId may be specified");
+            return BatchProcessor.Result.failed("Only one of *datasetId, *pid and *databaseId may be specified");
         }
         var idColumn = idColumns.get(0);
         var id = trimToNull(effectiveValues.get(idColumn));
@@ -335,25 +334,43 @@ public class DatasetEditMetadata implements Callable<Integer> {
 
     private Map<String, String> applyDefaults(BatchProcessor.Row row) {
         var effectiveValues = new LinkedHashMap<String, String>();
+        var names = row.asMap().keySet();
         row.asMap().forEach((name, value) -> {
-            var column = RESERVED_COLUMNS.stream().filter(name::equalsIgnoreCase).findFirst().orElse(name);
-            effectiveValues.put(column, value);
+            // In single-row mode only starred names are special; unstarred ones are field assignments from the command line
+            var column = inputFile != null ? toSpecialColumn(name, names) : null;
+            effectiveValues.put(column != null ? column : name, value);
         });
         if (inputFile == null) {
-            applyDefault(effectiveValues, row, DATASET_ID, datasetId);
-            applyDefault(effectiveValues, row, PID, pid);
-            applyDefault(effectiveValues, row, DATABASE_ID, databaseId);
+            applyDefault(effectiveValues, DATASET_ID, datasetId);
+            applyDefault(effectiveValues, PID, pid);
+            applyDefault(effectiveValues, DATABASE_ID, databaseId);
         }
-        applyDefault(effectiveValues, row, EXPECTED_STATE, expectedState);
-        applyDefault(effectiveValues, row, EXPECT_IN_REVIEW, expectInReview);
-        applyDefault(effectiveValues, row, PUBLISH_VERSION, publishVersion);
-        applyDefault(effectiveValues, row, VERSION_NOTE, versionNote);
-        applyDefault(effectiveValues, row, REPLACE, Boolean.toString(replace));
+        applyDefault(effectiveValues, EXPECTED_STATE, expectedState);
+        applyDefault(effectiveValues, EXPECT_IN_REVIEW, expectInReview);
+        applyDefault(effectiveValues, PUBLISH_VERSION, publishVersion);
+        applyDefault(effectiveValues, VERSION_NOTE, versionNote);
+        applyDefault(effectiveValues, REPLACE, Boolean.toString(replace));
         return effectiveValues;
     }
 
-    private void applyDefault(Map<String, String> effectiveValues, BatchProcessor.Row row, String column, String value) {
-        if (value != null && (!row.hasColumn(column) || isBlank(row.getValue(column)))) {
+    /**
+     * Returns the canonical special column name for a column, or null if it is a metadata field column. The star is optional: an unstarred name is only
+     * special if the input has no starred column with the same name. Otherwise, it is a field with that name.
+     */
+    private static String toSpecialColumn(String name, Collection<String> allNames) {
+        if (name.startsWith(SPECIAL_COLUMN_PREFIX)) {
+            return RESERVED_COLUMNS.stream().filter(name::equalsIgnoreCase).findFirst().orElse(name);
+        }
+        var starred = SPECIAL_COLUMN_PREFIX + name;
+        var special = RESERVED_COLUMNS.stream().filter(starred::equalsIgnoreCase).findFirst();
+        if (special.isPresent() && allNames.stream().noneMatch(starred::equalsIgnoreCase)) {
+            return special.get();
+        }
+        return null;
+    }
+
+    private void applyDefault(Map<String, String> effectiveValues, String column, String value) {
+        if (value != null && isBlank(effectiveValues.get(column))) {
             effectiveValues.put(column, value);
         }
     }
@@ -370,8 +387,8 @@ public class DatasetEditMetadata implements Callable<Integer> {
                 throw new IllegalArgumentException("Invalid field assignment: " + assignment);
             }
             String fieldName = assignment.substring(0, separator);
-            if (containsIgnoreCase(RESERVED_COLUMNS, fieldName) || containsIgnoreCase(RESERVED_REPORT_COLUMNS, fieldName)) {
-                throw new IllegalArgumentException("Reserved field name: " + fieldName);
+            if (fieldName.startsWith(SPECIAL_COLUMN_PREFIX)) {
+                throw new IllegalArgumentException("Field name must not start with " + SPECIAL_COLUMN_PREFIX + ": " + fieldName);
             }
             parsed.put(fieldName, assignment.substring(separator + 1));
         }
@@ -381,8 +398,10 @@ public class DatasetEditMetadata implements Callable<Integer> {
     private Map<String, String> extractEditableValues(Map<String, String> effectiveValues) {
         var values = new LinkedHashMap<String, String>();
         for (var entry : effectiveValues.entrySet()) {
-            if (!containsIgnoreCase(RESERVED_COLUMNS, entry.getKey())) {
+            if (!entry.getKey().startsWith(SPECIAL_COLUMN_PREFIX)) {
                 values.put(entry.getKey(), entry.getValue());
+            } else if (!containsIgnoreCase(RESERVED_COLUMNS, entry.getKey())) {
+                throw new IllegalArgumentException("Unknown special column: " + entry.getKey());
             }
         }
         return values;

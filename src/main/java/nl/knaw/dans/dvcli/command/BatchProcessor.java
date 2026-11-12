@@ -49,7 +49,6 @@ import java.util.Map;
  */
 @Slf4j
 public class BatchProcessor implements Closeable {
-    private static final List<String> REPORT_COLUMNS = List.of("result", "message");
 
     public interface RowHandler {
         Result handle(Row row) throws Exception;
@@ -123,8 +122,9 @@ public class BatchProcessor implements Closeable {
     private final Iterator<Map<String, String>> rows;
     private final Closeable closeable;
 
-    private BatchProcessor(List<String> headers, Iterator<Map<String, String>> rows, Closeable closeable, Writer writer) throws IOException {
-        for (String reportColumn : REPORT_COLUMNS) {
+    private BatchProcessor(List<String> headers, Iterator<Map<String, String>> rows, Closeable closeable, Writer writer, String reportColumnPrefix) throws IOException {
+        var reportColumns = List.of(reportColumnPrefix + "result", reportColumnPrefix + "message");
+        for (String reportColumn : reportColumns) {
             if (headers.stream().anyMatch(reportColumn::equalsIgnoreCase)) {
                 throw new IllegalArgumentException("Input contains reserved column: " + reportColumn);
             }
@@ -135,7 +135,7 @@ public class BatchProcessor implements Closeable {
         this.closeable = closeable;
 
         var reportHeaders = new ArrayList<>(headers);
-        reportHeaders.addAll(REPORT_COLUMNS);
+        reportHeaders.addAll(reportColumns);
         this.printer = new CSVPrinter(writer, CSVFormat.DEFAULT.builder()
             .setHeader(reportHeaders.toArray(String[]::new))
             .get());
@@ -143,6 +143,13 @@ public class BatchProcessor implements Closeable {
     }
 
     public static BatchProcessor forCsv(Path inputFile, Writer writer) throws IOException {
+        return forCsv(inputFile, writer, "");
+    }
+
+    /**
+     * @param reportColumnPrefix prefix for the names of the report columns, e.g., "*" to distinguish them from metadata field columns
+     */
+    public static BatchProcessor forCsv(Path inputFile, Writer writer, String reportColumnPrefix) throws IOException {
         var reader = Files.newBufferedReader(inputFile);
         try {
             CSVParser parser = CSVFormat.DEFAULT.builder()
@@ -175,7 +182,7 @@ public class BatchProcessor implements Closeable {
             return new BatchProcessor(headers, rows, () -> {
                 parser.close();
                 reader.close();
-            }, writer);
+            }, writer, reportColumnPrefix);
         }
         catch (Exception e) {
             reader.close();
@@ -184,10 +191,14 @@ public class BatchProcessor implements Closeable {
     }
 
     public static BatchProcessor forSingleRow(Map<String, String> row, Writer writer) throws IOException {
+        return forSingleRow(row, writer, "");
+    }
+
+    public static BatchProcessor forSingleRow(Map<String, String> row, Writer writer, String reportColumnPrefix) throws IOException {
         var headers = new ArrayList<>(row.keySet());
         List<Map<String, String>> rows = List.of(new LinkedHashMap<>(row));
         return new BatchProcessor(headers, rows.iterator(), () -> {
-        }, writer);
+        }, writer, reportColumnPrefix);
     }
 
     public Summary process(RowHandler handler) throws IOException {

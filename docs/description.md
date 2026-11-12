@@ -42,6 +42,14 @@ The columns fall into several categories:
 
 Column names are case-insensitive.
 
+!!! note "Avoiding conflicts between special columns and fields"
+
+    If a metadata field has the same name as one of the non-field columns above (e.g., `pid`), prefix the name of the non-field column with `*`, e.g.,
+    `*pid`. The prefix is optional otherwise. If both `*pid` and `pid` are present, the first is the dataset's PID and the second is a metadata field. 
+
+
+
+
 [Enabling version notes]: https://guides.dataverse.org/en/latest/installation/config.html#dataverse-feature-enable-version-note
 
 ### Field types
@@ -71,9 +79,19 @@ command line together with `--input-file` is an error. Blank and skip-code cells
 ### Other options
 
 The option `--timeout` (for example `30s`, `2m`; seconds if no unit is given) is not a column; it applies to the wait for publication of each dataset. The
-option `--wait-between-rows` (same format as `--timeout`, default no wait; only allowed together with `--input-file`) is not a column either; it sets the time to wait after each processed row, except the
+option `--wait-between-rows` (same format as `--timeout`, default no wait; only allowed together with `--input-file`) is not a column either; it sets the time
+to wait after each processed row, except the
 last one, e.g., to throttle the load on the Dataverse instance. The
 option `--skip-code` (default `!skip`) is not a column either; it sets the cell value that marks a field as not to be changed.
+
+### Report file
+
+The report file is a CSV file with the same columns as the input file, plus two additional columns `*result` and `*message` at the end. The `*result` column
+contains the result of the processing of each row. The status is one of the following:
+
+- `OK`: the row was processed successfully
+- `FAILED`: an error occurred while processing the row
+- `SKIPPED`: the row was skipped because a precondition was not met
 
 ### Running without a CSV input file
 
@@ -87,7 +105,8 @@ quotes if the value contains spaces, or if the name has an index, e.g., `'myFiel
 ### Report
 
 When running with a CSV input file, a report will be written to a file in the directory configured in `editMetadata.reportsDir` in `.dv.yml`. The `--report-dir`
-option can be used to override this location. The report contains a copy of each line with the extra columns `result` and `message`. When running without a CSV
+option can be used to override this location. The report contains a copy of each line with the extra columns `*result` and `*message`. When running without a
+CSV
 input file, the report is written to the standard output.
 
 [Dataverse API]: {{ dataverse_api_url }}
