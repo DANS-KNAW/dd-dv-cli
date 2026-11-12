@@ -35,6 +35,18 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Processes input rows as a batch and writes a CSV report containing the original input columns followed by processing result columns.
+ * <p>
+ * Rows can be supplied from a CSV file or from a single map-backed row. Each row is exposed to a {@link RowHandler}, which returns a {@link Result} indicating whether the row was processed
+ * successfully, failed, or skipped. Exceptions thrown by the handler are converted into failed results for the affected row.
+ * <p>
+ * The generated report appends the reserved columns {@code result} and {@code message}. Input headers must not contain columns with those names, compared case-insensitively.
+ * <p>
+ * Processing is sequential. A summary is returned after all rows have been handled, containing counts for each result status. Report records are flushed after each processed row.
+ * <p>
+ * Instances own the report printer and any input resources opened by the factory method. Call {@link #close()} when processing is complete to release resources.
+ */
 @Slf4j
 public class BatchProcessor implements Closeable {
     private static final List<String> REPORT_COLUMNS = List.of("result", "message");
@@ -144,6 +156,7 @@ public class BatchProcessor implements Closeable {
             log.info("Reading batch input from {}", inputFile);
             var records = parser.iterator();
             var rows = new Iterator<Map<String, String>>() {
+
                 @Override
                 public boolean hasNext() {
                     return records.hasNext();
