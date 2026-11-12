@@ -417,6 +417,18 @@ public class DatasetEditMetadata implements Callable<Integer> {
             int index = determineIndex(spec, indexText, entry.getKey());
             var accumulator = accumulators.computeIfAbsent(spec.getName(), ignored -> new FieldValueAccumulator(spec));
             if (value == null) {
+                if (subfieldName != null) {
+                    if (!"compound".equals(spec.getTypeClass())) {
+                        throw new IllegalArgumentException("Subfield not allowed for " + entry.getKey());
+                    }
+                    var subfieldSpec = getFieldSpecIgnoreCase(spec.getChildFields(), subfieldName);
+                    if (subfieldSpec == null) {
+                        throw new IllegalArgumentException("Unknown subfield " + subfieldName + " for " + spec.getName());
+                    }
+                    if ("compound".equals(subfieldSpec.getTypeClass()) || subfieldSpec.isMultiple()) {
+                        throw new IllegalArgumentException("Unsupported subfield shape for " + entry.getKey());
+                    }
+                }
                 accumulator.markBlank();
                 continue;
             }
