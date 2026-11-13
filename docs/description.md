@@ -28,6 +28,7 @@ Column names are case-insensitive.
     names must not start with `*`. The `*result` and `*message` columns in the [report](#report) always have the `*` preempting any possible conflicts with
     field names.
 
+
 ### Field types
 
 The names of the field value columns depend on the metadata blocks that are available.
@@ -51,7 +52,14 @@ the corresponding columns:
 
 Field values can have defaults too: `<column name>=<value>` arguments can be combined with `--input-file`. They work the same way: a column that is missing
 from the CSV file gets the value for every row, and for an existing column the value is used for the rows where the cell is empty or blank. How blank cells in
-field columns are interpreted otherwise is specific to the command.
+field columns are interpreted otherwise is specific to the command. Note that you will need to enclose the whole argument in quotes if the value contains
+spaces, or if the name has an
+index, e.g., `'myField[1]=longer value with spaces'`.
+
+!!! note "Running without CSV input file"
+
+    Since you can provide defaults for all the columns, it is also possible to run the commands without a CSV input file. This can be useful when testing. 
+
 
 ### Other options
 
@@ -74,24 +82,11 @@ The `*result` column contains one of:
 - `FAILED`: an error occurred while processing the row
 - `SKIPPED`: the row was skipped because a precondition was not met
 
-### Running without a CSV input file
-
-When testing, it can be useful to specify a row directly on the command-line, without going to the trouble of first saving it into a CSV file. The columns
-have their command line equivalent, e.g., `--publishVersion`, `--expectedState`, etc. Field values can be specified on the command line as trailing arguments
-in the format `<column name>=<value>`. Note that you will need to enclose the whole argument in quotes if the value contains spaces, or if the name has an
-index, e.g., `'myField[1]=longer value with spaces'`.
-
 dv dataverse-create-dataset
 ---------------------------
 Creates one dataset, or a batch of datasets, in a collection. It uses the [Create a dataset]{:target=_blank} endpoint. The common features described
 [above](#common-features-of-dv-dataverse-create-dataset-and-dv-dataset-edit-metadata) apply. Only the metadata blocks enabled for the target collection can be
 used, and the fields that Dataverse requires must be provided.
-
-The differences with [`dv dataset-edit-metadata`](#dv-dataset-edit-metadata) are:
-
-* There is no dataset identifier: the persistent identifier is assigned by Dataverse and reported in the `*message` column of the [report](#report).
-* There are no preconditions (`expectedState`, `expectInReview`, `=<fieldId>`), because the dataset does not exist yet.
-* There is no `replace`, `versionNote` or skip code. An empty cell simply means that the field gets no value.
 
 ### Columns
 
@@ -100,13 +95,6 @@ The differences with [`dv dataset-edit-metadata`](#dv-dataset-edit-metadata) are
 * `publish` - whether to publish the dataset after creation: `yes`, or `no` (synonym: `leave-draft`). Default: the value of `--publish`, or `no`. A newly
   created dataset is always published as version 1.0, so there is no choice of version type.
 * Any other column is a metadata field value (see [Field types](#field-types)).
-
-Example:
-
-```bash
-dv dataverse-create-dataset --alias mycollection --publish yes \
-   'title=My dataset' 'author[1].authorName=Doe, Jane' 'subject[1]=Chemistry'
-```
 
 dv dataset-edit-metadata
 ------------------------
@@ -145,12 +133,6 @@ input. The common features described
     * An empty cell leaves the field unchanged if `replace` is `no`, and removes the field's value(s) if `replace` is `yes`.
     * To leave a field unchanged while `replace` is `yes`, put `!skip` in the cell. If the value `!skip` must literally be stored in a field, choose another
       skip code with the `--skip-code` option (default `!skip`).
-
-### Command line defaults
-
-The command line options `--expectedState`, `--expectInReview`, `--publishVersion`, `--versionNote` and `--replace` can be combined with `--input-file` and
-provide default values for the corresponding columns, as described in [Default values](#default-values). If neither a column value nor a command line option
-is given, no state expectation, publication or version note is applied.
 
 [Enabling version notes]: https://guides.dataverse.org/en/latest/installation/config.html#dataverse-feature-enable-version-note
 
