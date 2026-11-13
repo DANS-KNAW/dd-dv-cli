@@ -29,27 +29,15 @@ import nl.knaw.dans.lib.dataverse.model.dataset.ControlledMultiValueField;
 import nl.knaw.dans.lib.dataverse.model.dataset.ControlledSingleValueField;
 import nl.knaw.dans.lib.dataverse.model.dataset.DatasetFieldType;
 import nl.knaw.dans.lib.dataverse.model.dataset.DatasetVersion;
-import nl.knaw.dans.lib.dataverse.model.dataset.FieldList;
-import nl.knaw.dans.lib.dataverse.model.dataset.MetadataField;
 import nl.knaw.dans.lib.dataverse.model.dataset.PrimitiveMultiValueField;
 import nl.knaw.dans.lib.dataverse.model.dataset.PrimitiveSingleValueField;
 import nl.knaw.dans.lib.dataverse.model.dataset.SingleValueField;
 import nl.knaw.dans.lib.dataverse.model.dataset.UpdateType;
 import picocli.CommandLine.Command;
-import picocli.CommandLine.ITypeConverter;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
-import java.io.Writer;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -58,10 +46,19 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+
+import static nl.knaw.dans.dvcli.command.DatasetFieldConverter.FIELD_PATTERN;
+import static nl.knaw.dans.dvcli.command.DatasetFieldConverter.getFieldSpecIgnoreCase;
+import static nl.knaw.dans.dvcli.command.DatasetFieldConverter.toFieldList;
+import static nl.knaw.dans.dvcli.command.MetadataColumns.EXPECTED_VALUE_PREFIX;
+import static nl.knaw.dans.dvcli.command.MetadataColumns.SPECIAL_COLUMN_PREFIX;
+import static nl.knaw.dans.dvcli.command.MetadataColumns.containsIgnoreCase;
+import static nl.knaw.dans.dvcli.command.MetadataColumns.parseAssignments;
+import static nl.knaw.dans.dvcli.command.Strings.isBlank;
+import static nl.knaw.dans.dvcli.command.Strings.trimToNull;
 
 @Command(
     name = "dataset-edit-metadata",
@@ -70,8 +67,6 @@ import java.util.stream.Stream;
 )
 @Slf4j
 public class DatasetEditMetadata implements Callable<Integer> {
-    static final String SPECIAL_COLUMN_PREFIX = "*";
-    static final String EXPECTED_VALUE_PREFIX = "=";
     private static final String DATASET_ID = "*datasetId";
     private static final String PID = "*pid";
     private static final String DATABASE_ID = "*databaseId";
@@ -84,9 +79,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
     private static final String VERSION_NOTE = "*versionNote";
     private static final String REPLACE = "*replace";
     private static final Set<String> RESERVED_COLUMNS = Set.of(DATASET_ID, PID, DATABASE_ID, EXPECTED_STATE, EXPECT_IN_REVIEW, PUBLISH_VERSION, VERSION_NOTE, REPLACE);
-    private static final Pattern FIELD_PATTERN = Pattern.compile("^(?<field>[^.\\[]+)(?:\\[(?<index>\\d+)])?(?:\\.(?<subfield>.+))?$");
     private static final long PUBLISH_POLL_INTERVAL_MS = 5000L;
-    private static final DateTimeFormatter REPORT_TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmmss");
 
     @Option(names = { "-i", "--input-file" }, description = "Input CSV file")
     private Path inputFile;
@@ -183,7 +176,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
             }
 
             var fieldSpecs = metadataFieldSpecProvider.getFieldSpecs();
-            try (var writer = createReportWriter();
+            try (var writer = BatchReportWriters.create(inputFile, reportsDir, defaultReportsDir);
                 var batchProcessor = inputFile != null
                     ? BatchProcessor.forCsv(inputFile, writer, SPECIAL_COLUMN_PREFIX, createBatchDefaults(defaultFieldValues))
                     : BatchProcessor.forSingleRow(createSingleRow(defaultFieldValues), writer, SPECIAL_COLUMN_PREFIX)) {
@@ -210,30 +203,6 @@ public class DatasetEditMetadata implements Callable<Integer> {
             System.err.println("Error editing dataset metadata: " + e.getMessage());
             return 1;
         }
-    }
-
-    private Writer createReportWriter() throws IOException {
-        if (inputFile == null) {
-            return new PrintWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8), true);
-        }
-
-        var effectiveReportsDir = reportsDir != null ? reportsDir : defaultReportsDir;
-        if (effectiveReportsDir == null) {
-            log.info("No reports directory configured; writing batch report to stdout");
-            return new PrintWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8), true);
-        }
-
-        Files.createDirectories(effectiveReportsDir);
-        var reportFile = effectiveReportsDir.resolve(createReportFileName(inputFile));
-        log.info("Writing batch report to {}", reportFile);
-        return Files.newBufferedWriter(reportFile, StandardCharsets.UTF_8);
-    }
-
-    private String createReportFileName(Path csvInputFile) {
-        var fileName = csvInputFile.getFileName().toString();
-        var dotIndex = fileName.lastIndexOf('.');
-        var basename = dotIndex > 0 ? fileName.substring(0, dotIndex) : fileName;
-        return basename + "-" + LocalDateTime.now().format(REPORT_TIMESTAMP_FORMAT) + ".csv";
     }
 
     private BatchProcessor.Result processRow(BatchProcessor.Row row, Map<String, String> defaultFieldValues, Map<String, DatasetFieldType> fieldSpecs) throws Exception {
@@ -468,46 +437,13 @@ public class DatasetEditMetadata implements Callable<Integer> {
      * special if the input has no starred column with the same name. Otherwise, it is a field with that name.
      */
     private static String toSpecialColumn(String name, Collection<String> allNames) {
-        return toSpecialColumn(name, allNames, RESERVED_COLUMNS);
-    }
-
-    static String toSpecialColumn(String name, Collection<String> allNames, Set<String> reservedColumns) {
-        if (name.startsWith(SPECIAL_COLUMN_PREFIX)) {
-            return reservedColumns.stream().filter(name::equalsIgnoreCase).findFirst().orElse(name);
-        }
-        var starred = SPECIAL_COLUMN_PREFIX + name;
-        var special = reservedColumns.stream().filter(starred::equalsIgnoreCase).findFirst();
-        if (special.isPresent() && allNames.stream().noneMatch(starred::equalsIgnoreCase)) {
-            return special.get();
-        }
-        return null;
+        return MetadataColumns.toSpecialColumn(name, allNames, RESERVED_COLUMNS);
     }
 
     private void applyDefault(Map<String, String> effectiveValues, String column, String value) {
         if (value != null && isBlank(effectiveValues.get(column))) {
             effectiveValues.put(column, value);
         }
-    }
-
-    static Map<String, String> parseAssignments(List<String> assignments) {
-        var parsed = new LinkedHashMap<String, String>();
-        for (String assignment : assignments) {
-            if (assignment.isBlank()) {
-                continue;
-            }
-
-            // A leading '=' marks an expected-value column, so the separator is the next '='
-            int separator = assignment.indexOf('=', assignment.startsWith(EXPECTED_VALUE_PREFIX) ? 1 : 0);
-            if (separator <= 0 || separator == 1 && assignment.startsWith(EXPECTED_VALUE_PREFIX)) {
-                throw new IllegalArgumentException("Invalid field assignment: " + assignment);
-            }
-            String fieldName = assignment.substring(0, separator);
-            if (fieldName.startsWith(SPECIAL_COLUMN_PREFIX)) {
-                throw new IllegalArgumentException("Field name must not start with " + SPECIAL_COLUMN_PREFIX + ": " + fieldName);
-            }
-            parsed.put(fieldName, assignment.substring(separator + 1));
-        }
-        return parsed;
     }
 
     private Map<String, String> extractEditableValues(Map<String, String> effectiveValues) {
@@ -523,96 +459,6 @@ public class DatasetEditMetadata implements Callable<Integer> {
             }
         }
         return values;
-    }
-
-    static FieldList toFieldList(Map<String, String> editableValues, Map<String, DatasetFieldType> fieldSpecs, boolean replaceExistingValues, String skipCode) {
-        var accumulators = new LinkedHashMap<String, FieldValueAccumulator>();
-
-        for (var entry : editableValues.entrySet()) {
-            var value = trimToNull(entry.getValue());
-            if (value != null && value.equals(skipCode)) {
-                markSkipped(entry.getKey(), fieldSpecs, accumulators);
-                continue;
-            }
-            if (value == null && !replaceExistingValues) {
-                continue;
-            }
-
-            var matcher = FIELD_PATTERN.matcher(entry.getKey());
-            if (!matcher.matches()) {
-                throw new IllegalArgumentException("Invalid field column: " + entry.getKey());
-            }
-
-            var fieldName = matcher.group("field");
-            var indexText = matcher.group("index");
-            var subfieldName = matcher.group("subfield");
-            var spec = getFieldSpecIgnoreCase(fieldSpecs, fieldName);
-            if (spec == null) {
-                throw new IllegalArgumentException("Unknown metadata field: " + fieldName);
-            }
-
-            int index = determineIndex(spec, indexText, entry.getKey());
-            var accumulator = accumulators.computeIfAbsent(spec.getName(), ignored -> new FieldValueAccumulator(spec));
-            if (value == null) {
-                if (subfieldName != null) {
-                    if (!"compound".equals(spec.getTypeClass())) {
-                        throw new IllegalArgumentException("Subfield not allowed for " + entry.getKey());
-                    }
-                    var subfieldSpec = getFieldSpecIgnoreCase(spec.getChildFields(), subfieldName);
-                    if (subfieldSpec == null) {
-                        throw new IllegalArgumentException("Unknown subfield " + subfieldName + " for " + spec.getName());
-                    }
-                    if ("compound".equals(subfieldSpec.getTypeClass()) || subfieldSpec.isMultiple()) {
-                        throw new IllegalArgumentException("Unsupported subfield shape for " + entry.getKey());
-                    }
-                }
-                accumulator.markBlank();
-                continue;
-            }
-
-            if (subfieldName == null) {
-                accumulator.addValue(index, value, entry.getKey());
-            }
-            else {
-                accumulator.addSubfieldValue(index, subfieldName, value, entry.getKey());
-            }
-        }
-
-        var fieldList = new FieldList();
-        for (FieldValueAccumulator accumulator : accumulators.values()) {
-            if (accumulator.isChanged()) {
-                fieldList.add(accumulator.toMetadataField());
-            }
-        }
-        return fieldList;
-    }
-
-    private static void markSkipped(String columnName, Map<String, DatasetFieldType> fieldSpecs, Map<String, FieldValueAccumulator> accumulators) {
-        var spec = getFieldSpecIgnoreCase(fieldSpecs, rootFieldName(columnName));
-        if (spec == null) {
-            throw new IllegalArgumentException("Unknown metadata field: " + rootFieldName(columnName));
-        }
-        accumulators.computeIfAbsent(spec.getName(), ignored -> new FieldValueAccumulator(spec)).markSkipped();
-    }
-
-    private static String rootFieldName(String columnName) {
-        var matcher = FIELD_PATTERN.matcher(columnName);
-        return matcher.matches() ? matcher.group("field") : columnName;
-    }
-
-    private static int determineIndex(DatasetFieldType spec, String indexText, String columnName) {
-        if (indexText == null) {
-            return 1;
-        }
-
-        if (!spec.isMultiple()) {
-            throw new IllegalArgumentException("Field does not allow indexed values: " + columnName);
-        }
-        int index = Integer.parseInt(indexText);
-        if (index < 1) {
-            throw new IllegalArgumentException("Field indexes must start at 1: " + columnName);
-        }
-        return index;
     }
 
     private boolean isInReview(List<Lock> locks) {
@@ -647,33 +493,6 @@ public class DatasetEditMetadata implements Callable<Integer> {
         }
     }
 
-    private static boolean containsIgnoreCase(Set<String> names, String name) {
-        return names.stream().anyMatch(name::equalsIgnoreCase);
-    }
-
-    static DatasetFieldType getFieldSpecIgnoreCase(Map<String, DatasetFieldType> specs, String name) {
-        if (specs == null) {
-            return null;
-        }
-        return specs.entrySet().stream()
-            .filter(entry -> entry.getKey().equalsIgnoreCase(name))
-            .map(Map.Entry::getValue)
-            .findFirst()
-            .orElse(null);
-    }
-
-    static String trimToNull(String value) {
-        if (value == null) {
-            return null;
-        }
-        var trimmed = value.trim();
-        return trimmed.isEmpty() ? null : trimmed;
-    }
-
-    static boolean isBlank(String value) {
-        return trimToNull(value) == null;
-    }
-
     interface MetadataFieldSpecProvider {
         Map<String, DatasetFieldType> getFieldSpecs() throws Exception;
     }
@@ -701,179 +520,6 @@ public class DatasetEditMetadata implements Callable<Integer> {
             cachedFieldSpecs = Collections.unmodifiableMap(specs);
             log.info("Loaded {} metadata field definitions", cachedFieldSpecs.size());
             return cachedFieldSpecs;
-        }
-    }
-
-    @RequiredArgsConstructor
-    static class FieldValueAccumulator {
-        private final DatasetFieldType fieldSpec;
-        private final Map<Integer, String> simpleValues = new TreeMap<>();
-        private final Map<Integer, Map<String, String>> compoundValues = new TreeMap<>();
-        private boolean blank;
-        private boolean skipped;
-
-        void addValue(int index, String value, String columnName) {
-            checkNotSkipped(columnName);
-            if ("compound".equals(fieldSpec.getTypeClass())) {
-                throw new IllegalArgumentException("Compound field requires subfields: " + columnName);
-            }
-            if (simpleValues.putIfAbsent(index, value) != null) {
-                throw new IllegalArgumentException("Duplicate field value for " + columnName);
-            }
-        }
-
-        void addSubfieldValue(int index, String subfieldName, String value, String columnName) {
-            checkNotSkipped(columnName);
-            if (!"compound".equals(fieldSpec.getTypeClass())) {
-                throw new IllegalArgumentException("Subfield not allowed for " + columnName);
-            }
-
-            var subfieldSpec = getFieldSpecIgnoreCase(fieldSpec.getChildFields(), subfieldName);
-            if (subfieldSpec == null) {
-                throw new IllegalArgumentException("Unknown subfield " + subfieldName + " for " + fieldSpec.getName());
-            }
-            if ("compound".equals(subfieldSpec.getTypeClass()) || subfieldSpec.isMultiple()) {
-                throw new IllegalArgumentException("Unsupported subfield shape for " + columnName);
-            }
-
-            var values = compoundValues.computeIfAbsent(index, ignored -> new LinkedHashMap<>());
-            if (values.putIfAbsent(subfieldSpec.getName(), value) != null) {
-                throw new IllegalArgumentException("Duplicate field value for " + columnName);
-            }
-        }
-
-        void markBlank() {
-            blank = true;
-        }
-
-        void markSkipped() {
-            if (!simpleValues.isEmpty() || !compoundValues.isEmpty()) {
-                throw new IllegalArgumentException("Cannot mix skip code and other values in field " + fieldSpec.getName());
-            }
-            skipped = true;
-        }
-
-        private void checkNotSkipped(String columnName) {
-            if (skipped) {
-                throw new IllegalArgumentException("Cannot mix skip code and other values in field " + fieldSpec.getName() + " (column " + columnName + ")");
-            }
-        }
-
-        boolean isChanged() {
-            if (!simpleValues.isEmpty() || !compoundValues.isEmpty()) {
-                return true;
-            }
-            return blank && !skipped;
-        }
-
-        MetadataField toMetadataField() {
-            if (simpleValues.isEmpty() && compoundValues.isEmpty()) {
-                return clearField();
-            }
-            if ("compound".equals(fieldSpec.getTypeClass())) {
-                return toCompoundField();
-            }
-            return toSimpleField();
-        }
-
-        private MetadataField clearField() {
-            if ("compound".equals(fieldSpec.getTypeClass())) {
-                return fieldSpec.isMultiple()
-                    ? new CompoundMultiValueField(fieldSpec.getName(), List.of())
-                    : new CompoundSingleValueField(fieldSpec.getName(), Map.of());
-            }
-            if (fieldSpec.isMultiple()) {
-                return switch (fieldSpec.getTypeClass()) {
-                    case "primitive" -> new PrimitiveMultiValueField(fieldSpec.getName(), List.of());
-                    case "controlledVocabulary" -> new ControlledMultiValueField(fieldSpec.getName(), List.of());
-                    default -> throw new IllegalArgumentException("Unsupported field typeClass for " + fieldSpec.getName() + ": " + fieldSpec.getTypeClass());
-                };
-            }
-            return switch (fieldSpec.getTypeClass()) {
-                case "primitive" -> new PrimitiveSingleValueField(fieldSpec.getName(), "");
-                case "controlledVocabulary" -> new ControlledSingleValueField(fieldSpec.getName(), "");
-                default -> throw new IllegalArgumentException("Unsupported field typeClass for " + fieldSpec.getName() + ": " + fieldSpec.getTypeClass());
-            };
-        }
-
-        private MetadataField toSimpleField() {
-            if (simpleValues.isEmpty()) {
-                throw new IllegalArgumentException("No value provided for " + fieldSpec.getName());
-            }
-
-            if (!fieldSpec.isMultiple()) {
-                if (simpleValues.size() > 1) {
-                    throw new IllegalArgumentException("Field does not allow multiple values: " + fieldSpec.getName());
-                }
-                return (MetadataField) createSingleValueField(fieldSpec, simpleValues.values().iterator().next());
-            }
-
-            var values = new ArrayList<String>();
-            for (String value : simpleValues.values()) {
-                validateControlledVocabulary(fieldSpec, value);
-                values.add(value);
-            }
-
-            return switch (fieldSpec.getTypeClass()) {
-                case "primitive" -> new PrimitiveMultiValueField(fieldSpec.getName(), values);
-                case "controlledVocabulary" -> new ControlledMultiValueField(fieldSpec.getName(), values);
-                default -> throw new IllegalArgumentException("Unsupported field typeClass for " + fieldSpec.getName() + ": " + fieldSpec.getTypeClass());
-            };
-        }
-
-        private MetadataField toCompoundField() {
-            if (compoundValues.isEmpty()) {
-                throw new IllegalArgumentException("No value provided for " + fieldSpec.getName());
-            }
-
-            if (!fieldSpec.isMultiple()) {
-                if (compoundValues.size() > 1) {
-                    throw new IllegalArgumentException("Field does not allow multiple values: " + fieldSpec.getName());
-                }
-                return new CompoundSingleValueField(fieldSpec.getName(), createCompoundValue(compoundValues.values().iterator().next()));
-            }
-
-            var values = new ArrayList<Map<String, SingleValueField>>();
-            for (Map<String, String> compoundValue : compoundValues.values()) {
-                values.add(createCompoundValue(compoundValue));
-            }
-            return new CompoundMultiValueField(fieldSpec.getName(), values);
-        }
-
-        private Map<String, SingleValueField> createCompoundValue(Map<String, String> compoundValue) {
-            var values = new LinkedHashMap<String, SingleValueField>();
-            for (var entry : compoundValue.entrySet()) {
-                var subfieldSpec = fieldSpec.getChildFields() != null ? fieldSpec.getChildFields().get(entry.getKey()) : null;
-                values.put(entry.getKey(), createSingleValueField(subfieldSpec, entry.getValue()));
-            }
-            return values;
-        }
-
-        private SingleValueField createSingleValueField(DatasetFieldType spec, String value) {
-            validateControlledVocabulary(spec, value);
-
-            return switch (spec.getTypeClass()) {
-                case "primitive" -> new PrimitiveSingleValueField(spec.getName(), value);
-                case "controlledVocabulary" -> new ControlledSingleValueField(spec.getName(), value);
-                default -> throw new IllegalArgumentException("Unsupported field typeClass for " + spec.getName() + ": " + spec.getTypeClass());
-            };
-        }
-
-        private void validateControlledVocabulary(DatasetFieldType spec, String value) {
-            if (!"controlledVocabulary".equals(spec.getTypeClass()) || spec.getControlledVocabularyValues() == null || spec.getControlledVocabularyValues().isEmpty()) {
-                return;
-            }
-            if (!spec.getControlledVocabularyValues().contains(value)) {
-                throw new IllegalArgumentException("Invalid controlled vocabulary value for " + spec.getName() + ": " + value);
-            }
-        }
-    }
-
-    static class TimeoutConverter implements ITypeConverter<Duration> {
-        @Override
-        public Duration convert(String value) {
-            var trimmed = value.trim();
-            return Duration.parse(trimmed.matches("\\d+") ? trimmed + "s" : trimmed);
         }
     }
 

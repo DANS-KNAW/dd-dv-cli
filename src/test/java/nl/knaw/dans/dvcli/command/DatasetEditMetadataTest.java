@@ -69,7 +69,7 @@ public class DatasetEditMetadataTest {
 
     @Test
     void timeout_accepts_units_and_defaults_to_seconds() {
-        var converter = new DatasetEditMetadata.TimeoutConverter();
+        var converter = new TimeoutConverter();
 
         assertThat(converter.convert("10s").toSeconds()).isEqualTo(10);
         assertThat(converter.convert("2m").toSeconds()).isEqualTo(120);
@@ -504,11 +504,11 @@ public class DatasetEditMetadataTest {
     void field_value_accumulator_rejects_mixing_skip_and_values_in_either_order() {
         var subject = createFieldSpecs().get("subject");
 
-        var valueThenSkip = new DatasetEditMetadata.FieldValueAccumulator(subject);
+        var valueThenSkip = new FieldValueAccumulator(subject);
         valueThenSkip.addValue(1, "Chemistry", "subject");
         assertThatThrownBy(valueThenSkip::markSkipped).isInstanceOf(IllegalArgumentException.class);
 
-        var skipThenValue = new DatasetEditMetadata.FieldValueAccumulator(subject);
+        var skipThenValue = new FieldValueAccumulator(subject);
         skipThenValue.markSkipped();
         assertThatThrownBy(() -> skipThenValue.addValue(2, "Chemistry", "subject[2]")).isInstanceOf(IllegalArgumentException.class);
     }

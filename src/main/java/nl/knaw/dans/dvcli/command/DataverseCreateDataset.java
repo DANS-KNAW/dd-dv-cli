@@ -30,15 +30,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
-import java.io.Writer;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -48,13 +40,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Callable;
 
-import static nl.knaw.dans.dvcli.command.DatasetEditMetadata.EXPECTED_VALUE_PREFIX;
-import static nl.knaw.dans.dvcli.command.DatasetEditMetadata.SPECIAL_COLUMN_PREFIX;
-import static nl.knaw.dans.dvcli.command.DatasetEditMetadata.isBlank;
-import static nl.knaw.dans.dvcli.command.DatasetEditMetadata.parseAssignments;
-import static nl.knaw.dans.dvcli.command.DatasetEditMetadata.toFieldList;
-import static nl.knaw.dans.dvcli.command.DatasetEditMetadata.toSpecialColumn;
-import static nl.knaw.dans.dvcli.command.DatasetEditMetadata.trimToNull;
+import static nl.knaw.dans.dvcli.command.DatasetFieldConverter.toFieldList;
+import static nl.knaw.dans.dvcli.command.MetadataColumns.EXPECTED_VALUE_PREFIX;
+import static nl.knaw.dans.dvcli.command.MetadataColumns.SPECIAL_COLUMN_PREFIX;
+import static nl.knaw.dans.dvcli.command.MetadataColumns.parseAssignments;
+import static nl.knaw.dans.dvcli.command.MetadataColumns.toSpecialColumn;
+import static nl.knaw.dans.dvcli.command.Strings.firstNonBlank;
+import static nl.knaw.dans.dvcli.command.Strings.trimToNull;
+
 
 @Command(
     name = "dataverse-create-dataset",
@@ -68,7 +61,6 @@ public class DataverseCreateDataset implements Callable<Integer> {
     private static final String PUBLISH = "*publish";
     private static final Set<String> RESERVED_COLUMNS = Set.of(ALIAS, PUBLISH);
     private static final long PUBLISH_POLL_INTERVAL_MS = 5000L;
-    private static final DateTimeFormatter REPORT_TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd_HHmmss");
 
     @Option(names = { "-i", "--input-file" }, description = "Input CSV file")
     private Path inputFile;
@@ -79,10 +71,10 @@ public class DataverseCreateDataset implements Callable<Integer> {
     @Option(names = { "--publish" }, description = "Publish the dataset after creation (as version 1.0): yes or no/leave-draft (default: no)")
     private String publish;
 
-    @Option(names = { "--timeout" }, defaultValue = "10s", converter = DatasetEditMetadata.TimeoutConverter.class, description = "Timeout for publication, e.g. 30s, 2m, 1h; without a unit seconds are assumed (default: ${DEFAULT-VALUE})")
+    @Option(names = { "--timeout" }, defaultValue = "10s", converter = TimeoutConverter.class, description = "Timeout for publication, e.g. 30s, 2m, 1h; without a unit seconds are assumed (default: ${DEFAULT-VALUE})")
     private Duration timeout;
 
-    @Option(names = { "--wait-between-rows" }, converter = DatasetEditMetadata.TimeoutConverter.class, description = "Time to wait after each processed row, except the last, e.g. 30s, 2m; without a unit seconds are assumed; only allowed together with --input-file (default: no wait)")
+    @Option(names = { "--wait-between-rows" }, converter = TimeoutConverter.class, description = "Time to wait after each processed row, except the last, e.g. 30s, 2m; without a unit seconds are assumed; only allowed together with --input-file (default: no wait)")
     private Duration waitBetweenRows;
 
     @Option(names = { "--reports-dir" }, description = "Directory for batch reports")
@@ -133,7 +125,7 @@ public class DataverseCreateDataset implements Callable<Integer> {
             PublishChoice.parse(trimToNull(publish));
 
             log.info("Starting dataverse-create-dataset in {} mode", inputFile != null ? "batch" : "single-row");
-            try (var writer = createReportWriter();
+            try (var writer = BatchReportWriters.create(inputFile, reportsDir, defaultReportsDir);
                 var batchProcessor = inputFile != null
                     ? BatchProcessor.forCsv(inputFile, writer, SPECIAL_COLUMN_PREFIX, createDefaults(defaultFieldValues))
                     : BatchProcessor.forSingleRow(new LinkedHashMap<>(defaultFieldValues), writer, SPECIAL_COLUMN_PREFIX)) {
@@ -159,24 +151,6 @@ public class DataverseCreateDataset implements Callable<Integer> {
         }
         defaults.putAll(defaultFieldValues);
         return defaults;
-    }
-
-    private Writer createReportWriter() throws IOException {
-        if (inputFile == null) {
-            return new PrintWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8), true);
-        }
-        var effectiveReportsDir = reportsDir != null ? reportsDir : defaultReportsDir;
-        if (effectiveReportsDir == null) {
-            log.info("No reports directory configured; writing batch report to stdout");
-            return new PrintWriter(new OutputStreamWriter(System.out, StandardCharsets.UTF_8), true);
-        }
-        Files.createDirectories(effectiveReportsDir);
-        var fileName = inputFile.getFileName().toString();
-        var dotIndex = fileName.lastIndexOf('.');
-        var basename = dotIndex > 0 ? fileName.substring(0, dotIndex) : fileName;
-        var reportFile = effectiveReportsDir.resolve(basename + "-" + LocalDateTime.now().format(REPORT_TIMESTAMP_FORMAT) + ".csv");
-        log.info("Writing batch report to {}", reportFile);
-        return Files.newBufferedWriter(reportFile, StandardCharsets.UTF_8);
     }
 
     private BatchProcessor.Result processRow(BatchProcessor.Row row) throws Exception {
@@ -256,16 +230,6 @@ public class DataverseCreateDataset implements Callable<Integer> {
         var dataset = new Dataset();
         dataset.setDatasetVersion(version);
         return dataset;
-    }
-
-    private static String firstNonBlank(String first, String second, String third) {
-        if (!isBlank(first)) {
-            return first.trim();
-        }
-        if (!isBlank(second)) {
-            return second.trim();
-        }
-        return third;
     }
 
     interface CollectionMetadataBlocksProvider {
