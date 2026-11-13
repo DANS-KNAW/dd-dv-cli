@@ -31,7 +31,7 @@ import java.util.concurrent.Callable;
 public class MetadataExportDataset implements Callable<Integer> {
     private final MetadataExportApi metadataExportApi;
 
-    @Parameters(index = "0", paramLabel = "DATASET_ID_OR_PID", description = "Dataset database id or persistent identifier")
+    @Parameters(index = "0", paramLabel = "databaseIdOrPid", description = "Dataset database id or persistent identifier")
     private String datasetIdOrPid;
 
     @Option(names = { "--formats" }, split = ",", description = "Comma-separated metadata formats to export")

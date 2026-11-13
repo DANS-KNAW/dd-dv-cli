@@ -91,7 +91,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
     @Option(names = { "-i", "--input-file" }, description = "Input CSV file")
     private Path inputFile;
 
-    @Option(names = { "--datasetId" }, description = "Dataset database id or persistent identifier")
+    @Option(names = { "--datasetId" }, paramLabel = "<databaseIdOrPid>", description = "Dataset database id or persistent identifier")
     private String datasetId;
 
     @Option(names = { "--pid" }, description = "Dataset persistent identifier, including the protocol, e.g., doi:10.5072/FK2/ABC")

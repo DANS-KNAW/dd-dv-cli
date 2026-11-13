@@ -112,7 +112,7 @@ quotes if the value contains spaces, or if the name has an index, e.g., `'myFiel
 
 dv dataset-publish
 ------------------
-Publishes the draft version of a dataset, using the [Publish a dataset]{:target=_blank} endpoint. `<datasetId>` is a persistent identifier including the
+Publishes the draft version of a dataset, using the [Publish a dataset]{:target=_blank} endpoint. `<databaseIdOrPid>` is a persistent identifier including the
 protocol (e.g., `doi:10.5072/FK2/ABC`), or, if it consists of digits only, a database id.
 
 * `--minor` (default), `--major` - the kind of version to publish; `--updatecurrent` updates the current version instead (superuser only). These options are
@@ -122,6 +122,16 @@ protocol (e.g., `doi:10.5072/FK2/ABC`), or, if it consists of digits only, a dat
 The command only requests the publication and does not wait for it to finish. (Use `dv dataset-edit-metadata` with `--publishVersion` if you need to wait.)
 
 [Publish a dataset]: {{ publish_dataset_url }}
+
+dv dataset-set-versionNote
+--------------------------
+Sets the version note of a dataset version, using the [Set version note]{:target=_blank} endpoint. This requires the version note to be enabled in Dataverse.
+(See [Enabling version notes]{:target="_blank"}.) `<databaseIdOrPid>` is a persistent identifier including the protocol, or a database id.
+
+* `--version <version>` - the version to set the note on: a version number such as `1.0`, or a tag such as `:draft`, `:latest` or `:latest-published`.
+  Default: `:draft`. Only the literal `:draft` is handled as a draft by Dataverse; other values (including `:latest`) require a superuser and a published version.
+
+[Set version note]: {{ version_note_url }}
 
 dv dataverse-create-dataset
 ---------------------------

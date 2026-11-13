@@ -31,6 +31,7 @@ import nl.knaw.dans.dvcli.command.DatasetLockDelete;
 import nl.knaw.dans.dvcli.command.DatasetLockList;
 import nl.knaw.dans.dvcli.command.DatasetPublish;
 import nl.knaw.dans.dvcli.command.DatasetSetStorageDriver;
+import nl.knaw.dans.dvcli.command.DatasetSetVersionNote;
 import nl.knaw.dans.dvcli.command.DatasetUpdateRegistrationMetadata;
 import nl.knaw.dans.dvcli.command.DatasetsGetPublished;
 import nl.knaw.dans.dvcli.command.DatasetsGetStorageSize;
@@ -108,6 +109,7 @@ public class DdDvCli extends nl.knaw.dans.lib.util.AbstractCommandLineApp<DdDvCl
             config.getEditMetadata() != null ? config.getEditMetadata().getReportsDir() : null
         ));
         commandLine.addSubcommand(new DatasetPublish(dataverseClient));
+        commandLine.addSubcommand(new DatasetSetVersionNote(dataverseClient));
         commandLine.addSubcommand(new DataverseCreateDataset(
             dataverseClient,
             config.getEditMetadata() != null ? config.getEditMetadata().getReportsDir() : null

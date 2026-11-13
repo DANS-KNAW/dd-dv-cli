@@ -36,6 +36,7 @@ extra:
   edit_metadata_url: https://guides.dataverse.org/en/latest/api/native-api.html#edit-dataset-metadata
   create_dataset_url: https://guides.dataverse.org/en/latest/api/native-api.html#create-a-dataset-in-a-dataverse-collection
   publish_dataset_url: https://guides.dataverse.org/en/latest/api/native-api.html#publish-a-dataset
+  version_note_url: https://guides.dataverse.org/en/latest/api/native-api.html#set-a-version-note
 
 plugins:
   - markdownextradata

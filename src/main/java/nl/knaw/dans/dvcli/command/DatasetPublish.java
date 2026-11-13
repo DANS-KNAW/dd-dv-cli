@@ -46,7 +46,7 @@ public class DatasetPublish implements Callable<Integer> {
     @Option(names = { "--versionNote" }, description = "Version note to set on the draft before publication")
     private String versionNote;
 
-    @Parameters(index = "0", paramLabel = "datasetId", description = "Persistent identifier (including protocol, e.g. doi:10.5072/FK2/ABC) or, if all digits, database id of the dataset")
+    @Parameters(index = "0", paramLabel = "databaseIdOrPid", description = "Database id (digits only) or persistent identifier (including protocol, e.g. doi:10.5072/FK2/ABC) of the dataset")
     private String datasetId;
 
     public DatasetPublish(DataverseClient dataverseClient) {

@@ -32,7 +32,7 @@ import java.util.concurrent.Callable;
 public class IndexDataset implements Callable<Integer> {
     private final SolrIndexApi solrIndexApi;
 
-    @Parameters(index = "0", paramLabel = "DATASET_ID_OR_PID", description = "Database id or persistent identifier of the dataset")
+    @Parameters(index = "0", paramLabel = "databaseIdOrPid", description = "Database id or persistent identifier of the dataset")
     private String datasetIdOrPid;
 
     @Override

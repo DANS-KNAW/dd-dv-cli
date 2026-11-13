@@ -13,24 +13,24 @@ dv banner-add -m <message> [ -l <lang> ] [ --dismissible ]
 dv banner-delete <id>
 
 # Lock management
-dv dataset-lock-add <pid> <lock_type>
-dv dataset-lock-delete <pid> <lock_type>
-dv dataset-lock-list <pid>
+dv dataset-lock-add <databaseIdOrPid> <lock_type>
+dv dataset-lock-delete <databaseIdOrPid> <lock_type>
+dv dataset-lock-list <databaseIdOrPid>
 
 # Storage drivers and direct upload
-dv dataset-delete-storage-driver <pid> <storageDriverLabel>
-dv dataset-get-storage-driver <pid>
-dv dataset-set-storage-driver <pid> <storageDriverLabel>
+dv dataset-delete-storage-driver <databaseIdOrPid> <storageDriverLabel>
+dv dataset-get-storage-driver <databaseIdOrPid>
+dv dataset-set-storage-driver <databaseIdOrPid> <storageDriverLabel>
 dv dataset-direct-upload [ --label <label> ] [ -d <directoryLabel> ] \
    [ --description <description> ] [ --resume ] [ --skip-checksum-on-resume ] \
-   [ --keep-upload-state ] <pid> <file>
+   [ --keep-upload-state ] <databaseIdOrPid> <file>
 dv storage-drivers-list
 
 # Solr index management
 dv index-status
 dv index-clear
 dv index-all
-dv index-dataset <datasetIdOrPid>
+dv index-dataset <databaseIdOrPid>
 dv index-dataverse <dataverseId>
 dv index-clear-timestamps
 
@@ -66,19 +66,25 @@ dv workflow-delete-ip-whitelist
 # Metadata export
 dv metadata-export-all [ -f | --force ] [ --older-than <date> ] [ --formats <formats> ]
 dv metadata-export-clear-timestamps
-dv metadata-export-dataset <datasetIdOrPid> [ --formats <formats> ]
+dv metadata-export-dataset <databaseIdOrPid> [ --formats <formats> ]
 
 # Dataset management
 dv dataverse-create-dataset [ --alias <collectionAlias> ] [ --publish { yes | no } ] \
    [ --timeout <timeout> ] [ --wait-between-rows <wait> ] [ --reports-dir <dir> ] \
    { <field>=<value> ... | -i <inputCsv> }
-dv dataset-edit-metadata { <field>=<value> ... | -i <inputCsv> } 
+dv dataset-edit-metadata [ --expectedState <state> ] [ --expectInReview { yes | no } ] \
+   [ --publishVersion { major | minor | leave-draft | no } ] [ --versionNote <note> ] \
+   [ --replace ] [ --skip-code <code> ] [ --timeout <timeout> ] \
+   [ --wait-between-rows <wait> ] [ --reports-dir <dir> ] \
+   { { --datasetId <databaseIdOrPid> | --pid <pid> | --databaseId <databaseId> } <field>=<value> ... \
+   | -i <inputCsv> }
 dv dataset-archive-version [ --skip-pids-from <skipPidsFrom> ] [ --force ] \
    [ --allow-rearchive-older-versions ] --report <reportBasename> \
    [ -w <waitBetweenItems> ] { -p <pid> -v <version> | -i <inputFile> }
 dv dataset-update-registration-metadata { -i <inputFile> | <pid> }
 dv dataset-publish [ { --major | --minor | --updatecurrent } ] [ --versionNote <note> ] \
-   <datasetId>
+   <databaseIdOrPid>
+dv dataset-set-versionNote [ --version <version> ] <databaseIdOrPid> <versionNote>
 
 # Misc management
 dv notifications-truncate [ --user <userId> ] --keep <keep>

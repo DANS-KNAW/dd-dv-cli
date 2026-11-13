@@ -25,7 +25,7 @@ import picocli.CommandLine.Parameters;
 public abstract class AbstractDatasetCmd {
     private final DataverseClient dataverseClient;
 
-    @Parameters(index = "0", paramLabel = "PID", description = "PID of the dataset")
+    @Parameters(index = "0", paramLabel = "databaseIdOrPid", description = "Database id or persistent identifier (including protocol, e.g. doi:10.5072/FK2/ABC) of the dataset")
     protected String pid;
 
     protected DatasetApi getDatasetApi() {
