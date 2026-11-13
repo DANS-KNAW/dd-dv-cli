@@ -119,10 +119,11 @@ public class BatchProcessor implements Closeable {
     private final CSVPrinter printer;
     @Getter
     private final List<String> headers;
+    private final Map<String, String> defaults;
     private final Iterator<Map<String, String>> rows;
     private final Closeable closeable;
 
-    private BatchProcessor(List<String> headers, Iterator<Map<String, String>> rows, Closeable closeable, Writer writer, String reportColumnPrefix) throws IOException {
+    private BatchProcessor(List<String> headers, Iterator<Map<String, String>> rows, Closeable closeable, Writer writer, String reportColumnPrefix, Map<String, String> defaults) throws IOException {
         var reportColumns = List.of(reportColumnPrefix + "result", reportColumnPrefix + "message");
         for (String reportColumn : reportColumns) {
             if (headers.stream().anyMatch(reportColumn::equalsIgnoreCase)) {
@@ -130,16 +131,44 @@ public class BatchProcessor implements Closeable {
             }
         }
 
-        this.headers = List.copyOf(headers);
+        var effectiveHeaders = new ArrayList<>(headers);
+        defaults.keySet().stream()
+            .filter(name -> findHeader(headers, name) == null)
+            .forEach(effectiveHeaders::add);
+        this.headers = List.copyOf(effectiveHeaders);
+        this.defaults = new LinkedHashMap<>(defaults);
         this.rows = rows;
         this.closeable = closeable;
 
-        var reportHeaders = new ArrayList<>(headers);
+        var reportHeaders = new ArrayList<>(this.headers);
         reportHeaders.addAll(reportColumns);
         this.printer = new CSVPrinter(writer, CSVFormat.DEFAULT.builder()
             .setHeader(reportHeaders.toArray(String[]::new))
             .get());
         log.debug("Initialized batch processor with headers {}", this.headers);
+    }
+
+    private static String stripStar(String name) {
+        return name.startsWith("*") ? name.substring(1) : name;
+    }
+
+    private static String findHeader(List<String> headers, String name) {
+        return headers.stream().filter(header -> stripStar(header).equalsIgnoreCase(stripStar(name))).findFirst().orElse(null);
+    }
+
+    /**
+     * Returns the row values with the defaults applied: blank cells in columns that have a default get the default value and columns that are missing get the default value.
+     */
+    private Map<String, String> applyDefaults(Map<String, String> values) {
+        var effective = new LinkedHashMap<>(values);
+        defaults.forEach((name, defaultValue) -> {
+            var header = findHeader(headers, name);
+            var current = effective.get(header);
+            if (current == null || current.isBlank()) {
+                effective.put(header, defaultValue);
+            }
+        });
+        return effective;
     }
 
     public static BatchProcessor forCsv(Path inputFile, Writer writer) throws IOException {
@@ -150,6 +179,14 @@ public class BatchProcessor implements Closeable {
      * @param reportColumnPrefix prefix for the names of the report columns, e.g., "*" to distinguish them from metadata field columns
      */
     public static BatchProcessor forCsv(Path inputFile, Writer writer, String reportColumnPrefix) throws IOException {
+        return forCsv(inputFile, writer, reportColumnPrefix, Map.of());
+    }
+
+    /**
+     * @param defaults default values per column; they are used for blank cells and for columns missing from the input. Columns missing from the input are added to the report. A leading
+     *                 star is ignored when matching column names.
+     */
+    public static BatchProcessor forCsv(Path inputFile, Writer writer, String reportColumnPrefix, Map<String, String> defaults) throws IOException {
         var reader = Files.newBufferedReader(inputFile);
         try {
             CSVParser parser = CSVFormat.DEFAULT.builder()
@@ -182,7 +219,7 @@ public class BatchProcessor implements Closeable {
             return new BatchProcessor(headers, rows, () -> {
                 parser.close();
                 reader.close();
-            }, writer, reportColumnPrefix);
+            }, writer, reportColumnPrefix, defaults);
         }
         catch (Exception e) {
             reader.close();
@@ -198,7 +235,7 @@ public class BatchProcessor implements Closeable {
         var headers = new ArrayList<>(row.keySet());
         List<Map<String, String>> rows = List.of(new LinkedHashMap<>(row));
         return new BatchProcessor(headers, rows.iterator(), () -> {
-        }, writer, reportColumnPrefix);
+        }, writer, reportColumnPrefix, Map.of());
     }
 
     public Summary process(RowHandler handler) throws IOException {
@@ -212,7 +249,7 @@ public class BatchProcessor implements Closeable {
 
         long rowNumber = 1;
         while (rows.hasNext()) {
-            var row = new Row(rowNumber++, headers, rows.next());
+            var row = new Row(rowNumber++, headers, applyDefaults(rows.next()));
             log.debug("Processing batch row {}", row.getRowNumber());
             Result result;
 

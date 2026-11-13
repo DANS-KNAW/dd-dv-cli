@@ -126,10 +126,6 @@ public class DataverseCreateDataset implements Callable<Integer> {
                 System.err.println("Expected values (=<field>) cannot be used when creating a dataset");
                 return 1;
             }
-            if (inputFile != null && !defaultFieldValues.isEmpty()) {
-                System.err.println("Field values can only be provided in the input file when --input-file is used");
-                return 1;
-            }
             if (inputFile == null && defaultFieldValues.isEmpty()) {
                 System.err.println("Either --input-file or at least one metadata field assignment is required");
                 return 1;
@@ -139,7 +135,7 @@ public class DataverseCreateDataset implements Callable<Integer> {
             log.info("Starting dataverse-create-dataset in {} mode", inputFile != null ? "batch" : "single-row");
             try (var writer = createReportWriter();
                 var batchProcessor = inputFile != null
-                    ? BatchProcessor.forCsv(inputFile, writer, SPECIAL_COLUMN_PREFIX)
+                    ? BatchProcessor.forCsv(inputFile, writer, SPECIAL_COLUMN_PREFIX, createDefaults(defaultFieldValues))
                     : BatchProcessor.forSingleRow(new LinkedHashMap<>(defaultFieldValues), writer, SPECIAL_COLUMN_PREFIX)) {
                 var summary = batchProcessor.process(this::processRow, waitBetweenRows == null ? 0 : waitBetweenRows.toMilliseconds());
                 log.info("Finished: {} ok, {} failed, {} skipped", summary.getOkCount(), summary.getFailedCount(), summary.getSkippedCount());
@@ -151,6 +147,18 @@ public class DataverseCreateDataset implements Callable<Integer> {
             System.err.println("Error creating dataset: " + e.getMessage());
             return 1;
         }
+    }
+
+    private Map<String, String> createDefaults(Map<String, String> defaultFieldValues) {
+        var defaults = new LinkedHashMap<String, String>();
+        if (alias != null) {
+            defaults.put(ALIAS, alias);
+        }
+        if (publish != null) {
+            defaults.put(PUBLISH, publish);
+        }
+        defaults.putAll(defaultFieldValues);
+        return defaults;
     }
 
     private Writer createReportWriter() throws IOException {

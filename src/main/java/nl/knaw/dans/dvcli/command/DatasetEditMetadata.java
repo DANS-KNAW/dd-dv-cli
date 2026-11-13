@@ -176,10 +176,6 @@ public class DatasetEditMetadata implements Callable<Integer> {
             }
 
             var defaultFieldValues = parseAssignments(fieldAssignments);
-            if (inputFile != null && !defaultFieldValues.isEmpty()) {
-                System.err.println("Field values can only be provided in the input file when --input-file is used");
-                return 1;
-            }
             log.info("Starting dataset-edit-metadata in {} mode", inputFile != null ? "batch" : "single-row");
             if (inputFile == null && defaultFieldValues.isEmpty()) {
                 System.err.println("At least one metadata field assignment is required");
@@ -189,7 +185,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
             var fieldSpecs = metadataFieldSpecProvider.getFieldSpecs();
             try (var writer = createReportWriter();
                 var batchProcessor = inputFile != null
-                    ? BatchProcessor.forCsv(inputFile, writer, SPECIAL_COLUMN_PREFIX)
+                    ? BatchProcessor.forCsv(inputFile, writer, SPECIAL_COLUMN_PREFIX, createBatchDefaults(defaultFieldValues))
                     : BatchProcessor.forSingleRow(createSingleRow(defaultFieldValues), writer, SPECIAL_COLUMN_PREFIX)) {
 
                 if (inputFile != null) {
@@ -407,6 +403,15 @@ public class DatasetEditMetadata implements Callable<Integer> {
         if (value != null) {
             result.put(key.toLowerCase(Locale.ROOT), value);
         }
+    }
+
+    private Map<String, String> createBatchDefaults(Map<String, String> defaultFieldValues) {
+        var defaults = createSingleRow(defaultFieldValues);
+        // replace is only a default if explicitly requested
+        if (!replace) {
+            defaults.remove(REPLACE);
+        }
+        return defaults;
     }
 
     private LinkedHashMap<String, String> createSingleRow(Map<String, String> defaultFieldValues) {

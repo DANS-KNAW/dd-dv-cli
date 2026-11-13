@@ -77,8 +77,9 @@ The command line options `--expectedState`, `--expectInReview`, `--publishVersio
 * If the column exists, the command line value is used for the rows where the cell is empty or blank. A non-blank cell always takes precedence.
 * If neither a column value nor a command line option is given, the setting is not applied (e.g., no state expectation, no publication, no version note).
 
-Field values have no defaults. When an input file is used, field values can only be provided in the file; specifying `<column name>=<value>` arguments on the
-command line together with `--input-file` is an error. Blank and skip-code cells are handled as described above.
+Field values can have defaults too: `<column name>=<value>` arguments can be combined with `--input-file`. They work the same way: a column that is missing
+from the CSV file gets the value for every row, and for an existing column the value is used for the rows where the cell is empty or blank. Blank and skip-code
+cells are handled as described above.
 
 ### Other options
 
@@ -92,7 +93,8 @@ option `--skip-code` (default `!skip`) is not a column either; it sets the cell 
 
 When running with a CSV input file, a report will be written to a file in the directory configured in `editMetadata.reportsDir` in `.dv.yml`. The
 `--reports-dir` option can be used to override this location. The report contains a copy of each line, with the column names exactly as in the input (so an
-optional `*` is kept or absent as it was), plus the extra columns `*result` and `*message`, which always have the `*`. When running without a CSV input file,
+optional `*` is kept or absent as it was), plus the columns for default values that were not in the input file, so that the effective input is visible (blank cells in the input are filled with the default
+value), plus the extra columns `*result` and `*message`, which always have the `*`. When running without a CSV input file,
 the report is written to the standard output.
 
 The `*result` column contains one of:
@@ -106,7 +108,7 @@ The `*result` column contains one of:
 When testing, it can be useful to specify a row directly on the command-line, without going to the trouble of first saving it into a CSV file. The columns for
 dataset identifier, preconditions and processing instructions all have their command line equivalent, e.g., `--datasetId`, `--pid`, `--databaseId` (mutually
 exclusive, and exactly one is required when no input file is used), `--expectedState`, etc. Field values
-can be specified on the command line as trailing arguments (only when no input file is used) in the format `<column name>=<value>`. Note that you will need to
+can be specified on the command line as trailing arguments in the format `<column name>=<value>`. Note that you will need to
 enclose the whole argument in
 quotes if the value contains spaces, or if the name has an index, e.g., `'myField[1]=longer value with spaces'`.
 
@@ -143,7 +145,7 @@ Creates one dataset, or a batch of datasets, in a collection. It uses the [Creat
 * There is no `replace`, `versionNote` or skip code. An empty cell simply means that the field gets no value.
 
 Field values are specified as in `dv dataset-edit-metadata` (see [Field types](#field-types)), either as `<field>=<value>` arguments or as columns of a CSV
-file (`--input-file`, `-i`). Field arguments and an input file are mutually exclusive. Only the metadata blocks enabled for the target collection can be used,
+file (`--input-file`, `-i`). Field arguments can be combined with an input file, in which case they provide defaults (see [Default values](#default-values)). Only the metadata blocks enabled for the target collection can be used,
 and the fields that Dataverse requires must be provided.
 
 ### Columns

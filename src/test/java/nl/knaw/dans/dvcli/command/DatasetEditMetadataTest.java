@@ -673,22 +673,31 @@ public class DatasetEditMetadataTest {
     }
 
     @Test
-    void dataset_edit_metadata_rejects_field_arguments_together_with_input_file() throws Exception {
+    void dataset_edit_metadata_applies_field_defaults_with_input_file_and_reports_them() throws Exception {
         var dataverseClient = Mockito.mock(DataverseClient.class);
-        var inputFile = tempDir.resolve("input.csv");
+        var datasetApi = Mockito.mock(DatasetApi.class);
+        var inputFile = tempDir.resolve("defaults.csv");
         Files.writeString(inputFile, """
-            *datasetId
+            *pid
             doi:10.5072/FK2/ABC
             """);
+        Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
+        var latestVersionResponse = mockLatestVersionResponse("RELEASED");
+        var lockResponse = mockLockResponse(List.of());
+        var editResponse = mockDatasetVersionResponse();
+        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(latestVersionResponse);
+        Mockito.when(datasetApi.getLocks()).thenReturn(lockResponse);
+        Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(editResponse);
 
         var result = executeWithCapturedStdout(
             new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
             "--input-file", inputFile.toString(),
-            "title=New title"
+            "title=Default title"
         );
 
-        assertThat(result.exitCode()).isEqualTo(1);
-        assertThat(result.stderr()).contains("Field values can only be provided in the input file");
+        assertThat(result.exitCode()).isZero();
+        Mockito.verify(datasetApi).editMetadata(Mockito.any(FieldList.class), Mockito.eq(false));
+        assertThat(result.stdout()).contains("*pid,title,*result,*message").contains("doi:10.5072/FK2/ABC,Default title,OK,Metadata edited");
     }
 
     @Test
