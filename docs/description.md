@@ -28,6 +28,10 @@ The columns fall into several categories:
     * `expectedState` - the expected state of the dataset version to be edited, one of `draft`, `released`, `deacessioned` or a negation of one of those, e.g.,
       `not released`
     * `expectInReview` - whether the dataset is expected to be in review: `yes` or `no`
+    * `=<fieldId>` - the expected current value of the field with identifier `<fieldId>`, e.g., `=title`, `=subject[2]` or `=author[1].authorName`. Before
+      making any changes, the command checks that the field in the latest version has exactly this value (case-sensitive, surrounding whitespace in the cell
+      ignored). If not, the row is skipped. An empty cell means the field is expected to have no value. For a multi-valued field without index, the
+      first value is checked. On the command line, use e.g. `=title=Old title`.
 * Processing instructions
     * `publishVersion` - whether to publish the dataset after editing, one of `minor`, `major` or `leave-draft` (no
       publication action is attempted) or `no` (a synonym for `leave-draft`).

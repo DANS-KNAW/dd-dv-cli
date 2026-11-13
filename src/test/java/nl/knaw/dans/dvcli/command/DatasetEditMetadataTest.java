@@ -27,6 +27,7 @@ import nl.knaw.dans.lib.dataverse.model.dataset.ControlledMultiValueField;
 import nl.knaw.dans.lib.dataverse.model.dataset.DatasetFieldType;
 import nl.knaw.dans.lib.dataverse.model.dataset.DatasetVersion;
 import nl.knaw.dans.lib.dataverse.model.dataset.FieldList;
+import nl.knaw.dans.lib.dataverse.model.dataset.MetadataBlock;
 import nl.knaw.dans.lib.dataverse.model.dataset.MetadataBlockDefinition;
 import nl.knaw.dans.lib.dataverse.model.dataset.PrimitiveSingleValueField;
 import nl.knaw.dans.lib.dataverse.model.dataset.UpdateType;
@@ -766,6 +767,85 @@ public class DatasetEditMetadataTest {
         var specs2 = provider.getFieldSpecs();
         assertThat(specs2).isSameAs(specs);
         Mockito.verify(metadataBlocksApi, Mockito.times(1)).listMetadataBlocks(false, true);
+    }
+
+    @Test
+    void expected_value_mismatch_skips_row() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var datasetApi = Mockito.mock(DatasetApi.class);
+        var response = mockLatestVersionResponse("RELEASED");
+        setTitle(response.getData(), "Actual title");
+        Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
+        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(response);
+        var lockResponse = mockLockResponse(List.of());
+        Mockito.when(datasetApi.getLocks()).thenReturn(lockResponse);
+
+        var result = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--datasetId", "doi:10.5072/FK2/ABC",
+            "=title=Other title",
+            "title=New title"
+        );
+
+        assertThat(result.stdout()).contains("SKIPPED").contains("Actual title");
+        Mockito.verify(datasetApi, Mockito.never()).editMetadata(Mockito.any(FieldList.class), Mockito.anyBoolean());
+    }
+
+    @Test
+    void expected_value_match_allows_edit() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var datasetApi = Mockito.mock(DatasetApi.class);
+        var response = mockLatestVersionResponse("RELEASED");
+        setTitle(response.getData(), "Actual title");
+        Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
+        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(response);
+        var lockResponse = mockLockResponse(List.of());
+        Mockito.when(datasetApi.getLocks()).thenReturn(lockResponse);
+
+        var result = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--datasetId", "doi:10.5072/FK2/ABC",
+            "=title=Actual title",
+            "title=New title"
+        );
+
+        assertThat(result.exitCode()).isZero();
+        Mockito.verify(datasetApi).editMetadata(Mockito.any(FieldList.class), Mockito.anyBoolean());
+    }
+
+    @Test
+    void empty_expected_value_requires_empty_field() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var datasetApi = Mockito.mock(DatasetApi.class);
+        var response = mockLatestVersionResponse("RELEASED");
+        setTitle(response.getData(), "Actual title");
+        var lockResponse = mockLockResponse(List.of());
+        Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
+        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(response);
+        Mockito.when(datasetApi.getLocks()).thenReturn(lockResponse);
+
+        var skipped = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--datasetId", "doi:10.5072/FK2/ABC",
+            "=title=",
+            "title=New title"
+        );
+        assertThat(skipped.stdout()).contains("SKIPPED");
+
+        var ok = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--datasetId", "doi:10.5072/FK2/ABC",
+            "=subject=",
+            "title=New title"
+        );
+        assertThat(ok.exitCode()).isZero();
+        Mockito.verify(datasetApi).editMetadata(Mockito.any(FieldList.class), Mockito.anyBoolean());
+    }
+
+    private static void setTitle(DatasetVersion version, String title) {
+        var block = new MetadataBlock();
+        block.setFields(List.of(new PrimitiveSingleValueField("title", title)));
+        version.setMetadataBlocks(Map.of("citation", block));
     }
 
     private static Map<String, DatasetFieldType> createFieldSpecs() {

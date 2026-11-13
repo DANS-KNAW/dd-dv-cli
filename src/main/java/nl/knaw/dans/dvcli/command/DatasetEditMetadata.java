@@ -28,6 +28,7 @@ import nl.knaw.dans.lib.dataverse.model.dataset.CompoundSingleValueField;
 import nl.knaw.dans.lib.dataverse.model.dataset.ControlledMultiValueField;
 import nl.knaw.dans.lib.dataverse.model.dataset.ControlledSingleValueField;
 import nl.knaw.dans.lib.dataverse.model.dataset.DatasetFieldType;
+import nl.knaw.dans.lib.dataverse.model.dataset.DatasetVersion;
 import nl.knaw.dans.lib.dataverse.model.dataset.FieldList;
 import nl.knaw.dans.lib.dataverse.model.dataset.MetadataField;
 import nl.knaw.dans.lib.dataverse.model.dataset.PrimitiveMultiValueField;
@@ -70,6 +71,7 @@ import java.util.stream.Stream;
 @Slf4j
 public class DatasetEditMetadata implements Callable<Integer> {
     private static final String SPECIAL_COLUMN_PREFIX = "*";
+    private static final String EXPECTED_VALUE_PREFIX = "=";
     private static final String DATASET_ID = "*datasetId";
     private static final String PID = "*pid";
     private static final String DATABASE_ID = "*databaseId";
@@ -278,6 +280,12 @@ public class DatasetEditMetadata implements Callable<Integer> {
             return BatchProcessor.Result.skipped(String.format("Expected in review %s but found %s", reviewExpectation.describe(), inReview ? "yes" : "no"));
         }
 
+        var mismatch = findExpectedValueMismatch(effectiveValues, latestVersion, fieldSpecs);
+        if (mismatch != null) {
+            log.info("Skipping dataset {} because {}", id, mismatch);
+            return BatchProcessor.Result.skipped(mismatch);
+        }
+
         var editableValues = extractEditableValues(effectiveValues);
         var replaceExistingValues = parseBoolean(trimToNull(effectiveValues.get(REPLACE)), false, REPLACE);
         var fieldList = toFieldList(editableValues, fieldSpecs, replaceExistingValues);
@@ -302,6 +310,103 @@ public class DatasetEditMetadata implements Callable<Integer> {
 
         log.info("Finished metadata edit for dataset {}", id);
         return BatchProcessor.Result.ok("Metadata edited");
+    }
+
+    /**
+     * Checks the columns named {@code =<fieldId>}. A blank cell means the field is expected to be empty. Returns a description of the first mismatch, or null if all expectations
+     * hold.
+     */
+    private String findExpectedValueMismatch(Map<String, String> effectiveValues, DatasetVersion version, Map<String, DatasetFieldType> fieldSpecs) {
+        Map<String, String> actualValues = null;
+        for (var entry : effectiveValues.entrySet()) {
+            if (!entry.getKey().startsWith(EXPECTED_VALUE_PREFIX)) {
+                continue;
+            }
+            var expected = trimToNull(entry.getValue());
+            var fieldId = entry.getKey().substring(EXPECTED_VALUE_PREFIX.length());
+            var matcher = FIELD_PATTERN.matcher(fieldId);
+            if (!matcher.matches()) {
+                throw new IllegalArgumentException("Invalid field column: " + entry.getKey());
+            }
+            var spec = getFieldSpecIgnoreCase(fieldSpecs, matcher.group("field"));
+            if (spec == null) {
+                throw new IllegalArgumentException("Unknown metadata field: " + matcher.group("field"));
+            }
+            if (actualValues == null) {
+                actualValues = flattenFieldValues(version);
+            }
+            var key = spec.getName()
+                + (matcher.group("index") != null ? "[" + Integer.parseInt(matcher.group("index")) + "]" : spec.isMultiple() ? "[1]" : "")
+                + (matcher.group("subfield") != null ? "." + matcher.group("subfield") : "");
+            var actual = actualValues.get(key.toLowerCase(Locale.ROOT));
+            if (!Objects.equals(expected, actual)) {
+                return String.format("Expected %s to be %s but found %s", fieldId, expected == null ? "empty" : "'" + expected + "'", actual == null ? "no value" : "'" + actual + "'");
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Flattens the metadata of a version to column-style identifiers (lower case), e.g., {@code title}, {@code subject[1]}, {@code author[2].authorname}.
+     */
+    private static Map<String, String> flattenFieldValues(DatasetVersion version) {
+        var result = new LinkedHashMap<String, String>();
+        if (version.getMetadataBlocks() == null) {
+            return result;
+        }
+        for (var block : version.getMetadataBlocks().values()) {
+            if (block.getFields() == null) {
+                continue;
+            }
+            for (var field : block.getFields()) {
+                var name = field.getTypeName();
+                if (field instanceof PrimitiveSingleValueField f) {
+                    putValue(result, name, f.getValue());
+                }
+                else if (field instanceof ControlledSingleValueField f) {
+                    putValue(result, name, f.getValue());
+                }
+                else if (field instanceof PrimitiveMultiValueField f && f.getValue() != null) {
+                    for (var i = 0; i < f.getValue().size(); i++) {
+                        putValue(result, name + "[" + (i + 1) + "]", f.getValue().get(i));
+                    }
+                }
+                else if (field instanceof ControlledMultiValueField f && f.getValue() != null) {
+                    for (var i = 0; i < f.getValue().size(); i++) {
+                        putValue(result, name + "[" + (i + 1) + "]", f.getValue().get(i));
+                    }
+                }
+                else if (field instanceof CompoundSingleValueField f) {
+                    putChildValues(result, name, f.getValue());
+                }
+                else if (field instanceof CompoundMultiValueField f && f.getValue() != null) {
+                    for (var i = 0; i < f.getValue().size(); i++) {
+                        putChildValues(result, name + "[" + (i + 1) + "]", f.getValue().get(i));
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    private static void putChildValues(Map<String, String> result, String prefix, Map<String, SingleValueField> children) {
+        if (children == null) {
+            return;
+        }
+        children.forEach((childName, child) -> {
+            if (child instanceof PrimitiveSingleValueField f) {
+                putValue(result, prefix + "." + childName, f.getValue());
+            }
+            else if (child instanceof ControlledSingleValueField f) {
+                putValue(result, prefix + "." + childName, f.getValue());
+            }
+        });
+    }
+
+    private static void putValue(Map<String, String> result, String key, String value) {
+        if (value != null) {
+            result.put(key.toLowerCase(Locale.ROOT), value);
+        }
     }
 
     private LinkedHashMap<String, String> createSingleRow(Map<String, String> defaultFieldValues) {
@@ -382,8 +487,9 @@ public class DatasetEditMetadata implements Callable<Integer> {
                 continue;
             }
 
-            int separator = assignment.indexOf('=');
-            if (separator <= 0) {
+            // A leading '=' marks an expected-value column, so the separator is the next '='
+            int separator = assignment.indexOf('=', assignment.startsWith(EXPECTED_VALUE_PREFIX) ? 1 : 0);
+            if (separator <= 0 || separator == 1 && assignment.startsWith(EXPECTED_VALUE_PREFIX)) {
                 throw new IllegalArgumentException("Invalid field assignment: " + assignment);
             }
             String fieldName = assignment.substring(0, separator);
@@ -398,6 +504,9 @@ public class DatasetEditMetadata implements Callable<Integer> {
     private Map<String, String> extractEditableValues(Map<String, String> effectiveValues) {
         var values = new LinkedHashMap<String, String>();
         for (var entry : effectiveValues.entrySet()) {
+            if (entry.getKey().startsWith(EXPECTED_VALUE_PREFIX)) {
+                continue;
+            }
             if (!entry.getKey().startsWith(SPECIAL_COLUMN_PREFIX)) {
                 values.put(entry.getKey(), entry.getValue());
             } else if (!containsIgnoreCase(RESERVED_COLUMNS, entry.getKey())) {
