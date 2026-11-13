@@ -110,6 +110,54 @@ can be specified on the command line as trailing arguments (only when no input f
 enclose the whole argument in
 quotes if the value contains spaces, or if the name has an index, e.g., `'myField[1]=longer value with spaces'`.
 
+dv dataset-publish
+------------------
+Publishes the draft version of a dataset, using the [Publish a dataset]{:target=_blank} endpoint. `<datasetId>` is a persistent identifier including the
+protocol (e.g., `doi:10.5072/FK2/ABC`), or, if it consists of digits only, a database id.
+
+* `--minor` (default), `--major` - the kind of version to publish; `--updatecurrent` updates the current version instead (superuser only). These options are
+  mutually exclusive.
+* `--versionNote <note>` - sets the version note on the draft before publishing. This requires version notes to be enabled in Dataverse.
+
+The command only requests the publication and does not wait for it to finish. (Use `dv dataset-edit-metadata` with `--publishVersion` if you need to wait.)
+
+[Publish a dataset]: {{ publish_dataset_url }}
+
+dv dataverse-create-dataset
+---------------------------
+Creates one dataset, or a batch of datasets, in a collection. It uses the [Create a dataset]{:target=_blank} endpoint. The command line follows the pattern of
+[`dv dataset-edit-metadata`](#dv-dataset-edit-metadata), with the following differences:
+
+* There is no dataset identifier: the persistent identifier is assigned by Dataverse and reported in the `*message` column of the [report](#report).
+* There are no preconditions (`expectedState`, `expectInReview`, `=<fieldId>`), because the dataset does not exist yet.
+* There is no `replace`, `versionNote` or skip code. An empty cell simply means that the field gets no value.
+
+Field values are specified as in `dv dataset-edit-metadata` (see [Field types](#field-types)), either as `<field>=<value>` arguments or as columns of a CSV
+file (`--input-file`, `-i`). Field arguments and an input file are mutually exclusive. Only the metadata blocks enabled for the target collection can be used,
+and the fields that Dataverse requires must be provided.
+
+### Columns
+
+* `alias` - the alias of the collection in which to create the dataset. Default: the value of `--alias`, or `root` if that is not specified either. A
+  non-blank cell takes precedence over the command line option.
+* `publish` - whether to publish the dataset after creation: `yes`, or `no` (synonym: `leave-draft`). Default: the value of `--publish`, or `no`. A newly
+  created dataset is always published as version 1.0, so there is no choice of version type.
+* Any other column is a metadata field value, as described for `dv dataset-edit-metadata`.
+
+As with `dv dataset-edit-metadata`, a `*` prefix on `alias` and `publish` resolves conflicts with fields of the same name.
+
+### Options
+
+`--timeout`, `--wait-between-rows` and `--reports-dir` work as for `dv dataset-edit-metadata`. Without an input file the report is written to the standard
+output. Example:
+
+```bash
+dv dataverse-create-dataset --alias mycollection --publish yes \
+   'title=My dataset' 'author[1].authorName=Doe, Jane' 'subject[1]=Chemistry'
+```
+
+[Create a dataset]: {{ create_dataset_url }}
+
 [Dataverse API]: {{ dataverse_api_url }}
 [dans-dataverse-client-lib]: {{ dans_dataverse_client_lib_url }}
 [Edit metadata]: {{ edit_metadata_url }}

@@ -70,8 +70,8 @@ import java.util.stream.Stream;
 )
 @Slf4j
 public class DatasetEditMetadata implements Callable<Integer> {
-    private static final String SPECIAL_COLUMN_PREFIX = "*";
-    private static final String EXPECTED_VALUE_PREFIX = "=";
+    static final String SPECIAL_COLUMN_PREFIX = "*";
+    static final String EXPECTED_VALUE_PREFIX = "=";
     private static final String DATASET_ID = "*datasetId";
     private static final String PID = "*pid";
     private static final String DATABASE_ID = "*databaseId";
@@ -288,7 +288,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
 
         var editableValues = extractEditableValues(effectiveValues);
         var replaceExistingValues = parseBoolean(trimToNull(effectiveValues.get(REPLACE)), false, REPLACE);
-        var fieldList = toFieldList(editableValues, fieldSpecs, replaceExistingValues);
+        var fieldList = toFieldList(editableValues, fieldSpecs, replaceExistingValues, skipCode);
         if (fieldList.getFields().isEmpty()) {
             return BatchProcessor.Result.failed("No metadata fields specified");
         }
@@ -463,11 +463,15 @@ public class DatasetEditMetadata implements Callable<Integer> {
      * special if the input has no starred column with the same name. Otherwise, it is a field with that name.
      */
     private static String toSpecialColumn(String name, Collection<String> allNames) {
+        return toSpecialColumn(name, allNames, RESERVED_COLUMNS);
+    }
+
+    static String toSpecialColumn(String name, Collection<String> allNames, Set<String> reservedColumns) {
         if (name.startsWith(SPECIAL_COLUMN_PREFIX)) {
-            return RESERVED_COLUMNS.stream().filter(name::equalsIgnoreCase).findFirst().orElse(name);
+            return reservedColumns.stream().filter(name::equalsIgnoreCase).findFirst().orElse(name);
         }
         var starred = SPECIAL_COLUMN_PREFIX + name;
-        var special = RESERVED_COLUMNS.stream().filter(starred::equalsIgnoreCase).findFirst();
+        var special = reservedColumns.stream().filter(starred::equalsIgnoreCase).findFirst();
         if (special.isPresent() && allNames.stream().noneMatch(starred::equalsIgnoreCase)) {
             return special.get();
         }
@@ -480,7 +484,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         }
     }
 
-    private Map<String, String> parseAssignments(List<String> assignments) {
+    static Map<String, String> parseAssignments(List<String> assignments) {
         var parsed = new LinkedHashMap<String, String>();
         for (String assignment : assignments) {
             if (assignment.isBlank()) {
@@ -516,7 +520,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         return values;
     }
 
-    private FieldList toFieldList(Map<String, String> editableValues, Map<String, DatasetFieldType> fieldSpecs, boolean replaceExistingValues) {
+    static FieldList toFieldList(Map<String, String> editableValues, Map<String, DatasetFieldType> fieldSpecs, boolean replaceExistingValues, String skipCode) {
         var accumulators = new LinkedHashMap<String, FieldValueAccumulator>();
 
         for (var entry : editableValues.entrySet()) {
@@ -578,7 +582,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         return fieldList;
     }
 
-    private void markSkipped(String columnName, Map<String, DatasetFieldType> fieldSpecs, Map<String, FieldValueAccumulator> accumulators) {
+    private static void markSkipped(String columnName, Map<String, DatasetFieldType> fieldSpecs, Map<String, FieldValueAccumulator> accumulators) {
         var spec = getFieldSpecIgnoreCase(fieldSpecs, rootFieldName(columnName));
         if (spec == null) {
             throw new IllegalArgumentException("Unknown metadata field: " + rootFieldName(columnName));
@@ -591,7 +595,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         return matcher.matches() ? matcher.group("field") : columnName;
     }
 
-    private int determineIndex(DatasetFieldType spec, String indexText, String columnName) {
+    private static int determineIndex(DatasetFieldType spec, String indexText, String columnName) {
         if (indexText == null) {
             return 1;
         }
@@ -617,7 +621,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
     }
 
     @SuppressWarnings("SameParameterValue")
-    private boolean parseBoolean(String value, boolean defaultValue, String optionName) {
+    static boolean parseBoolean(String value, boolean defaultValue, String optionName) {
         if (value == null) {
             return defaultValue;
         }
@@ -642,7 +646,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         return names.stream().anyMatch(name::equalsIgnoreCase);
     }
 
-    private static DatasetFieldType getFieldSpecIgnoreCase(Map<String, DatasetFieldType> specs, String name) {
+    static DatasetFieldType getFieldSpecIgnoreCase(Map<String, DatasetFieldType> specs, String name) {
         if (specs == null) {
             return null;
         }
@@ -653,7 +657,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
             .orElse(null);
     }
 
-    private static String trimToNull(String value) {
+    static String trimToNull(String value) {
         if (value == null) {
             return null;
         }
@@ -661,7 +665,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    private static boolean isBlank(String value) {
+    static boolean isBlank(String value) {
         return trimToNull(value) == null;
     }
 

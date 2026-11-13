@@ -29,11 +29,13 @@ import nl.knaw.dans.dvcli.command.DatasetGetStorageDriver;
 import nl.knaw.dans.dvcli.command.DatasetLockAdd;
 import nl.knaw.dans.dvcli.command.DatasetLockDelete;
 import nl.knaw.dans.dvcli.command.DatasetLockList;
+import nl.knaw.dans.dvcli.command.DatasetPublish;
 import nl.knaw.dans.dvcli.command.DatasetSetStorageDriver;
 import nl.knaw.dans.dvcli.command.DatasetUpdateRegistrationMetadata;
 import nl.knaw.dans.dvcli.command.DatasetsGetPublished;
 import nl.knaw.dans.dvcli.command.DatasetsGetStorageSize;
 import nl.knaw.dans.dvcli.command.DatafilesGetPublished;
+import nl.knaw.dans.dvcli.command.DataverseCreateDataset;
 import nl.knaw.dans.dvcli.command.DataversesCollectStorageUsage;
 import nl.knaw.dans.dvcli.command.FilemetasGetPublished;
 import nl.knaw.dans.dvcli.command.IndexAll;
@@ -102,6 +104,11 @@ public class DdDvCli extends nl.knaw.dans.lib.util.AbstractCommandLineApp<DdDvCl
         commandLine.addSubcommand(new DatasetSetStorageDriver(dataverseClient));
         commandLine.addSubcommand(new DatasetDirectUpload(dataverseClient, config.getExternalBaseUrl(), config.getApi().getApiKey()));
         commandLine.addSubcommand(new DatasetEditMetadata(
+            dataverseClient,
+            config.getEditMetadata() != null ? config.getEditMetadata().getReportsDir() : null
+        ));
+        commandLine.addSubcommand(new DatasetPublish(dataverseClient));
+        commandLine.addSubcommand(new DataverseCreateDataset(
             dataverseClient,
             config.getEditMetadata() != null ? config.getEditMetadata().getReportsDir() : null
         ));

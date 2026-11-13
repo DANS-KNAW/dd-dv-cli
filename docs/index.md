@@ -68,12 +68,20 @@ dv metadata-export-all [ -f | --force ] [ --older-than <date> ] [ --formats <for
 dv metadata-export-clear-timestamps
 dv metadata-export-dataset <datasetIdOrPid> [ --formats <formats> ]
 
-# Misc management
-dv notifications-truncate [ --user <userId> ] --keep <keep>
+# Dataset management
+dv dataverse-create-dataset [ --alias <collectionAlias> ] [ --publish { yes | no } ] \
+   [ --timeout <timeout> ] [ --wait-between-rows <wait> ] [ --reports-dir <dir> ] \
+   { <field>=<value> ... | -i <inputCsv> }
+dv dataset-edit-metadata { <field>=<value> ... | -i <inputCsv> } 
 dv dataset-archive-version [ --skip-pids-from <skipPidsFrom> ] [ --force ] \
    [ --allow-rearchive-older-versions ] --report <reportBasename> \
    [ -w <waitBetweenItems> ] { -p <pid> -v <version> | -i <inputFile> }
 dv dataset-update-registration-metadata { -i <inputFile> | <pid> }
+dv dataset-publish [ { --major | --minor | --updatecurrent } ] [ --versionNote <note> ] \
+   <datasetId>
+
+# Misc management
+dv notifications-truncate [ --user <userId> ] --keep <keep>
 dv users-import -i <inputCsv> -k <builtinUsersKey> [ --dry-run ]
 
 ```
