@@ -93,7 +93,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
     @Option(names = { "--databaseId" }, description = "Dataset database id (digits only)")
     private String databaseId;
 
-    @Option(names = { "--expectedState" }, description = "Expected latest version state: (not) draft, released, deaccessioned; omit for no expectation")
+    @Option(names = { "--expectedState" }, description = "Expected latest version state: (not) draft, released, deaccessioned; default: not deaccessioned")
     private String expectedState;
 
     @Option(names = { "--expectInReview" }, description = "Whether an InReview lock is expected: yes, no; omit for no expectation")
@@ -232,7 +232,8 @@ public class DatasetEditMetadata implements Callable<Integer> {
         var latestVersion = datasetApi.getVersion(Version.LATEST.toString()).getData();
 
         var actualState = latestVersion.getVersionState();
-        var expectedStateMatcher = ExpectedState.parse(trimToNull(effectiveValues.get(EXPECTED_STATE)));
+        var expectedStateValue = trimToNull(effectiveValues.get(EXPECTED_STATE));
+        var expectedStateMatcher = ExpectedState.parse(expectedStateValue == null ? "not deaccessioned" : expectedStateValue);
         if (!expectedStateMatcher.matches(actualState)) {
             log.info("Skipping dataset {} because state {} does not match expected {}", id, actualState, expectedStateMatcher.describe());
             return BatchProcessor.Result.skipped(String.format("Expected state %s but found %s", expectedStateMatcher.describe(), actualState));
@@ -267,7 +268,11 @@ public class DatasetEditMetadata implements Callable<Integer> {
         }
 
         var publicationMode = PublishVersion.parse(trimToNull(effectiveValues.get(PUBLISH_VERSION)));
-        if (publicationMode != PublishVersion.LEAVE_DRAFT) {
+        var draftBeforeEdit = "DRAFT".equalsIgnoreCase(actualState);
+        if (publicationMode != PublishVersion.LEAVE_DRAFT && draftBeforeEdit && expectedStateValue == null) {
+            log.info("Not publishing dataset {} because it was a draft and expectedState was not explicitly provided", id);
+        }
+        else if (publicationMode != PublishVersion.LEAVE_DRAFT) {
             log.info("Publishing dataset {} as {}", id, publicationMode);
             datasetApi.publish(publicationMode.toUpdateType(), false);
             datasetApi.awaitState("RELEASED", timeout.toMilliseconds(), PUBLISH_POLL_INTERVAL_MS);
