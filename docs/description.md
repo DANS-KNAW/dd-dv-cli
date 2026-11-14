@@ -29,6 +29,7 @@ Column names are case-insensitive.
     field names.
 
 
+
 ### Field types
 
 The names of the field value columns depend on the metadata blocks that are available.
@@ -61,6 +62,7 @@ index, e.g., `'myField[1]=longer value with spaces'`.
     Since you can provide defaults for all the columns, it is also possible to run the commands without a CSV input file. This can be useful when testing. 
 
 
+
 ### Other options
 
 * `--timeout` (for example `30s`, `2m`; seconds if no unit is given) is not a column; it applies to the wait for publication of each dataset.
@@ -73,8 +75,9 @@ index, e.g., `'myField[1]=longer value with spaces'`.
 When running with a CSV input file, a report will be written to a file in the directory configured in `editMetadata.reportsDir` in `.dv.yml`. The
 `--reports-dir` option can be used to override this location. The report contains a copy of each line, with the column names exactly as in the input (so an
 optional `*` is kept or absent as it was), plus the columns for default values that were not in the input file, so that the effective input is visible (blank
-cells in the input are filled with the default value), plus the extra columns `*result` and `*message`, which always have the `*`. When running without a CSV
-input file, the report is written to the standard output.
+cells in the input are filled with the default value), plus the extra columns `*result` and `*message`, which always have the `*`. The columns are ordered as:
+identifier (`pid`, `databaseId` or `datasetId`), `*result`, `*message`, the processing instruction columns (e.g., `*expectedState`), and finally the metadata
+field columns. When running without a CSV input file, the report is written to the standard output.
 
 The `*result` column contains one of:
 

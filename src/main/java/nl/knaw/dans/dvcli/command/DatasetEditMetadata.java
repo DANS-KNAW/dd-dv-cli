@@ -38,6 +38,7 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -179,8 +180,8 @@ public class DatasetEditMetadata implements Callable<Integer> {
             var fieldSpecs = metadataFieldSpecProvider.getFieldSpecs();
             try (var writer = BatchReportWriters.create(inputFile, reportsDir, defaultReportsDir);
                 var batchProcessor = inputFile != null
-                    ? BatchProcessor.forCsv(inputFile, writer, SPECIAL_COLUMN_PREFIX, createReportDefaults(defaultFieldValues))
-                    : BatchProcessor.forSingleRow(createSingleRow(defaultFieldValues), writer, SPECIAL_COLUMN_PREFIX, createReportDefaults(Map.of()))) {
+                    ? BatchProcessor.forCsv(inputFile, writer, SPECIAL_COLUMN_PREFIX, createReportDefaults(defaultFieldValues), this::orderReportColumns)
+                    : BatchProcessor.forSingleRow(createSingleRow(defaultFieldValues), writer, SPECIAL_COLUMN_PREFIX, createReportDefaults(Map.of()), this::orderReportColumns)) {
 
                 if (inputFile != null) {
                     var idColumnCount = ID_COLUMNS.stream().filter(column -> batchProcessor.getHeaders().stream().anyMatch(header -> column.equals(toSpecialColumn(header, batchProcessor.getHeaders())))).count();
@@ -381,6 +382,36 @@ public class DatasetEditMetadata implements Callable<Integer> {
         if (value != null) {
             result.put(key.toLowerCase(Locale.ROOT), value);
         }
+    }
+
+    /**
+     * Orders the report columns as: identifier, result, message, processing instruction columns, field columns.
+     */
+    private List<String> orderReportColumns(List<String> columns) {
+        var resultColumns = List.of(SPECIAL_COLUMN_PREFIX + "result", SPECIAL_COLUMN_PREFIX + "message");
+        var ids = new ArrayList<String>();
+        var instructions = new ArrayList<String>();
+        var fields = new ArrayList<String>();
+        for (var column : columns) {
+            if (resultColumns.contains(column)) {
+                continue;
+            }
+            var special = inputFile != null ? toSpecialColumn(column, columns) : (RESERVED_COLUMNS.contains(column) ? column : null);
+            if (special == null) {
+                fields.add(column);
+            }
+            else if (ID_COLUMNS.contains(special)) {
+                ids.add(column);
+            }
+            else {
+                instructions.add(column);
+            }
+        }
+        var ordered = new ArrayList<>(ids);
+        ordered.addAll(resultColumns);
+        ordered.addAll(instructions);
+        ordered.addAll(fields);
+        return ordered;
     }
 
     /**

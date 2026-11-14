@@ -36,6 +36,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.UnaryOperator;
 
 /**
  * Processes input rows as a batch and writes a CSV report containing the original input columns followed by processing result columns.
@@ -137,8 +138,11 @@ public class BatchProcessor implements Closeable {
     private final Map<String, String> defaults;
     private final Iterator<Map<String, String>> rows;
     private final Closeable closeable;
+    private final String resultColumn;
+    private final String messageColumn;
+    private final List<String> reportHeaders;
 
-    private BatchProcessor(List<String> headers, Iterator<Map<String, String>> rows, Closeable closeable, Writer writer, String reportColumnPrefix, Map<String, String> defaults) throws IOException {
+    private BatchProcessor(List<String> headers, Iterator<Map<String, String>> rows, Closeable closeable, Writer writer, String reportColumnPrefix, Map<String, String> defaults, UnaryOperator<List<String>> reportColumnOrder) throws IOException {
         var reportColumns = List.of(reportColumnPrefix + "result", reportColumnPrefix + "message");
         for (String reportColumn : reportColumns) {
             if (headers.stream().anyMatch(reportColumn::equalsIgnoreCase)) {
@@ -155,10 +159,13 @@ public class BatchProcessor implements Closeable {
         this.rows = rows;
         this.closeable = closeable;
 
-        var reportHeaders = new ArrayList<>(this.headers);
-        reportHeaders.addAll(reportColumns);
+        var unordered = new ArrayList<>(this.headers);
+        unordered.addAll(reportColumns);
+        this.resultColumn = reportColumns.get(0);
+        this.messageColumn = reportColumns.get(1);
+        this.reportHeaders = List.copyOf(reportColumnOrder.apply(unordered));
         this.printer = new CSVPrinter(writer, CSVFormat.DEFAULT.builder()
-            .setHeader(reportHeaders.toArray(String[]::new))
+            .setHeader(this.reportHeaders.toArray(String[]::new))
             .get());
         log.debug("Initialized batch processor with headers {}", this.headers);
     }
@@ -203,6 +210,15 @@ public class BatchProcessor implements Closeable {
      *                 star is ignored when matching column names.
      */
     public static BatchProcessor forCsv(Path inputFile, Writer writer, String reportColumnPrefix, Map<String, String> defaults) throws IOException {
+        return forCsv(inputFile, writer, reportColumnPrefix, defaults, UnaryOperator.identity());
+    }
+
+    /**
+     * Like {@link #forCsv(Path, Writer, String, Map)}, but the columns of the report are arranged by {@code reportColumnOrder}, which receives all report columns (input columns, added
+     * default columns, result and message) and must return the same columns in the desired order.
+     */
+    public static BatchProcessor forCsv(Path inputFile, Writer writer, String reportColumnPrefix, Map<String, String> defaults, UnaryOperator<List<String>> reportColumnOrder)
+        throws IOException {
         var reader = Files.newBufferedReader(inputFile);
         try {
             CSVParser parser = CSVFormat.DEFAULT.builder()
@@ -235,7 +251,7 @@ public class BatchProcessor implements Closeable {
             return new BatchProcessor(headers, rows, () -> {
                 parser.close();
                 reader.close();
-            }, writer, reportColumnPrefix, defaults);
+            }, writer, reportColumnPrefix, defaults, reportColumnOrder);
         }
         catch (Exception e) {
             reader.close();
@@ -255,10 +271,19 @@ public class BatchProcessor implements Closeable {
      * Like {@link #forSingleRow(Map, Writer, String)}, but columns that are missing from the row get the default value and are added to the report.
      */
     public static BatchProcessor forSingleRow(Map<String, String> row, Writer writer, String reportColumnPrefix, Map<String, String> defaults) throws IOException {
+        return forSingleRow(row, writer, reportColumnPrefix, defaults, UnaryOperator.identity());
+    }
+
+    /**
+     * Like {@link #forSingleRow(Map, Writer, String, Map)}, with the report columns arranged by {@code reportColumnOrder}; see
+     * {@link #forCsv(Path, Writer, String, Map, UnaryOperator)}.
+     */
+    public static BatchProcessor forSingleRow(Map<String, String> row, Writer writer, String reportColumnPrefix, Map<String, String> defaults,
+        UnaryOperator<List<String>> reportColumnOrder) throws IOException {
         var headers = new ArrayList<>(row.keySet());
         List<Map<String, String>> rows = List.of(new LinkedHashMap<>(row));
         return new BatchProcessor(headers, rows.iterator(), () -> {
-        }, writer, reportColumnPrefix, defaults);
+        }, writer, reportColumnPrefix, defaults, reportColumnOrder);
     }
 
     public Summary process(RowHandler handler) throws IOException {
@@ -292,11 +317,17 @@ public class BatchProcessor implements Closeable {
             }
 
             var output = new ArrayList<String>();
-            for (String header : headers) {
-                output.add(row.getValue(header));
+            for (String header : reportHeaders) {
+                if (header.equals(resultColumn)) {
+                    output.add(result.getStatus().name());
+                }
+                else if (header.equals(messageColumn)) {
+                    output.add(result.getMessage());
+                }
+                else {
+                    output.add(row.getValue(header));
+                }
             }
-            output.add(result.getStatus().name());
-            output.add(result.getMessage());
             printer.printRecord(output);
             printer.flush();
             log.debug("Finished batch row {} with status {}", row.getRowNumber(), result.getStatus());

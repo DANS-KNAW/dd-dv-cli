@@ -186,8 +186,8 @@ public class DatasetEditMetadataTest {
         assertThat(result.exitCode()).isZero();
         var reportFile = singleReportFileIn(reportsDir);
         assertThat(reportFile.getFileName().toString()).startsWith("input-").endsWith(".csv");
-        assertThat(Files.readString(reportFile)).contains("*DATASETID,TiTlE,*expectedState,*replace,*result,*message")
-            .contains("doi:10.5072/FK2/ABC,CSV title,not deaccessioned,false,OK,Metadata edited");
+        assertThat(Files.readString(reportFile)).contains("*DATASETID,*result,*message,*expectedState,*replace,TiTlE")
+            .contains("doi:10.5072/FK2/ABC,OK,Metadata edited,not deaccessioned,false,CSV title");
         Mockito.verify(datasetApi).editMetadata(Mockito.any(FieldList.class), Mockito.eq(false));
     }
 
@@ -213,7 +213,7 @@ public class DatasetEditMetadataTest {
             "--input-file", inputFile.toString());
 
         assertThat(result.exitCode()).isZero();
-        assertThat(result.stdout()).contains("pid,title,*expectedState,*replace,*result,*message").contains("doi:10.5072/FK2/ABC,CSV title,not deaccessioned,false,OK,Metadata edited");
+        assertThat(result.stdout()).contains("pid,*result,*message,*expectedState,*replace,title").contains("doi:10.5072/FK2/ABC,OK,Metadata edited,not deaccessioned,false,CSV title");
     }
 
     @Test
@@ -242,7 +242,7 @@ public class DatasetEditMetadataTest {
             "--input-file", inputFile.toString());
 
         assertThat(result.exitCode()).isZero();
-        assertThat(result.stdout()).contains("doi:10.5072/FK2/ABC,field value,not deaccessioned,false,OK,Metadata edited");
+        assertThat(result.stdout()).contains("doi:10.5072/FK2/ABC,OK,Metadata edited,not deaccessioned,false,field value");
     }
 
     @Test
@@ -271,7 +271,7 @@ public class DatasetEditMetadataTest {
         assertThat(result.exitCode()).isZero();
         var reportFile = singleReportFileIn(reportsDir);
         assertThat(reportFile.getFileName().toString()).startsWith("batch-input-").endsWith(".csv");
-        assertThat(Files.readString(reportFile)).contains("doi:10.5072/FK2/ABC,New title,not deaccessioned,false,OK,Metadata edited");
+        assertThat(Files.readString(reportFile)).contains("doi:10.5072/FK2/ABC,OK,Metadata edited,not deaccessioned,false,New title");
     }
 
     @Test
@@ -697,7 +697,7 @@ public class DatasetEditMetadataTest {
 
         assertThat(result.exitCode()).isZero();
         Mockito.verify(datasetApi).editMetadata(Mockito.any(FieldList.class), Mockito.eq(false));
-        assertThat(result.stdout()).contains("*pid,*expectedState,*replace,title,*result,*message").contains("doi:10.5072/FK2/ABC,not deaccessioned,false,Default title,OK,Metadata edited");
+        assertThat(result.stdout()).contains("*pid,*result,*message,*expectedState,*replace,title").contains("doi:10.5072/FK2/ABC,OK,Metadata edited,not deaccessioned,false,Default title");
     }
 
     @Test
