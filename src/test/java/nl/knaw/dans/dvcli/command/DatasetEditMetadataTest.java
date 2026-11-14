@@ -186,8 +186,8 @@ public class DatasetEditMetadataTest {
         assertThat(result.exitCode()).isZero();
         var reportFile = singleReportFileIn(reportsDir);
         assertThat(reportFile.getFileName().toString()).startsWith("input-").endsWith(".csv");
-        assertThat(Files.readString(reportFile)).contains("*DATASETID,TiTlE,*result,*message")
-            .contains("doi:10.5072/FK2/ABC,CSV title,OK,Metadata edited");
+        assertThat(Files.readString(reportFile)).contains("*DATASETID,TiTlE,*expectedState,*replace,*result,*message")
+            .contains("doi:10.5072/FK2/ABC,CSV title,not deaccessioned,false,OK,Metadata edited");
         Mockito.verify(datasetApi).editMetadata(Mockito.any(FieldList.class), Mockito.eq(false));
     }
 
@@ -213,7 +213,7 @@ public class DatasetEditMetadataTest {
             "--input-file", inputFile.toString());
 
         assertThat(result.exitCode()).isZero();
-        assertThat(result.stdout()).contains("pid,title,*result,*message").contains("doi:10.5072/FK2/ABC,CSV title,OK,Metadata edited");
+        assertThat(result.stdout()).contains("pid,title,*expectedState,*replace,*result,*message").contains("doi:10.5072/FK2/ABC,CSV title,not deaccessioned,false,OK,Metadata edited");
     }
 
     @Test
@@ -242,7 +242,7 @@ public class DatasetEditMetadataTest {
             "--input-file", inputFile.toString());
 
         assertThat(result.exitCode()).isZero();
-        assertThat(result.stdout()).contains("doi:10.5072/FK2/ABC,field value,OK,Metadata edited");
+        assertThat(result.stdout()).contains("doi:10.5072/FK2/ABC,field value,not deaccessioned,false,OK,Metadata edited");
     }
 
     @Test
@@ -271,7 +271,7 @@ public class DatasetEditMetadataTest {
         assertThat(result.exitCode()).isZero();
         var reportFile = singleReportFileIn(reportsDir);
         assertThat(reportFile.getFileName().toString()).startsWith("batch-input-").endsWith(".csv");
-        assertThat(Files.readString(reportFile)).contains("doi:10.5072/FK2/ABC,New title,OK,Metadata edited");
+        assertThat(Files.readString(reportFile)).contains("doi:10.5072/FK2/ABC,New title,not deaccessioned,false,OK,Metadata edited");
     }
 
     @Test
@@ -697,7 +697,32 @@ public class DatasetEditMetadataTest {
 
         assertThat(result.exitCode()).isZero();
         Mockito.verify(datasetApi).editMetadata(Mockito.any(FieldList.class), Mockito.eq(false));
-        assertThat(result.stdout()).contains("*pid,title,*result,*message").contains("doi:10.5072/FK2/ABC,Default title,OK,Metadata edited");
+        assertThat(result.stdout()).contains("*pid,*expectedState,*replace,title,*result,*message").contains("doi:10.5072/FK2/ABC,not deaccessioned,false,Default title,OK,Metadata edited");
+    }
+
+    @Test
+    void dataset_edit_metadata_skips_publication_for_draft_when_expected_state_is_not_explicit() throws Exception {
+        var dataverseClient = Mockito.mock(DataverseClient.class);
+        var datasetApi = Mockito.mock(DatasetApi.class);
+        Mockito.when(dataverseClient.dataset("doi:10.5072/FK2/ABC")).thenReturn(datasetApi);
+        var latestVersionResponse = mockLatestVersionResponse("DRAFT");
+        var lockResponse = mockLockResponse(List.of());
+        var editResponse = mockDatasetVersionResponse();
+        Mockito.when(datasetApi.getVersion(Version.LATEST.toString())).thenReturn(latestVersionResponse);
+        Mockito.when(datasetApi.getLocks()).thenReturn(lockResponse);
+        Mockito.when(datasetApi.editMetadata(Mockito.any(FieldList.class), Mockito.eq(false))).thenReturn(editResponse);
+
+        var result = executeWithCapturedStdout(
+            new CommandLine(new DatasetEditMetadata(dataverseClient, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--pid", "doi:10.5072/FK2/ABC",
+            "--publishVersion", "minor",
+            "title=T"
+        );
+
+        assertThat(result.exitCode()).isZero();
+        assertThat(result.stdout()).contains("not deaccessioned").contains("Metadata edited, publication skipped (existing draft)");
+        Mockito.verify(datasetApi).editMetadata(Mockito.any(FieldList.class), Mockito.eq(false));
+        Mockito.verify(datasetApi, Mockito.never()).publish(Mockito.any(), Mockito.anyBoolean());
     }
 
     @Test

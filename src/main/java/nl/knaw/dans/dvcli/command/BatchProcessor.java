@@ -30,10 +30,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Processes input rows as a batch and writes a CSV report containing the original input columns followed by processing result columns.
@@ -92,11 +94,24 @@ public class BatchProcessor implements Closeable {
         private final long rowNumber;
         private final List<String> headers;
         private final Map<String, String> values;
+        private final Set<String> defaultedColumns;
 
         public Row(long rowNumber, List<String> headers, Map<String, String> values) {
+            this(rowNumber, headers, values, Set.of());
+        }
+
+        public Row(long rowNumber, List<String> headers, Map<String, String> values, Set<String> defaultedColumns) {
             this.rowNumber = rowNumber;
             this.headers = List.copyOf(headers);
             this.values = Collections.unmodifiableMap(new LinkedHashMap<>(values));
+            this.defaultedColumns = Set.copyOf(defaultedColumns);
+        }
+
+        /**
+         * Returns whether the value of the column was filled in from the defaults, because the input had no value for it.
+         */
+        public boolean isDefaulted(String name) {
+            return defaultedColumns.stream().anyMatch(column -> stripStar(column).equalsIgnoreCase(stripStar(name)));
         }
 
         public boolean hasColumn(String name) {
@@ -159,13 +174,14 @@ public class BatchProcessor implements Closeable {
     /**
      * Returns the row values with the defaults applied: blank cells in columns that have a default get the default value and columns that are missing get the default value.
      */
-    private Map<String, String> applyDefaults(Map<String, String> values) {
+    private Map<String, String> applyDefaults(Map<String, String> values, Set<String> defaulted) {
         var effective = new LinkedHashMap<>(values);
         defaults.forEach((name, defaultValue) -> {
             var header = findHeader(headers, name);
             var current = effective.get(header);
             if (current == null || current.isBlank()) {
                 effective.put(header, defaultValue);
+                defaulted.add(header);
             }
         });
         return effective;
@@ -232,10 +248,17 @@ public class BatchProcessor implements Closeable {
     }
 
     public static BatchProcessor forSingleRow(Map<String, String> row, Writer writer, String reportColumnPrefix) throws IOException {
+        return forSingleRow(row, writer, reportColumnPrefix, Map.of());
+    }
+
+    /**
+     * Like {@link #forSingleRow(Map, Writer, String)}, but columns that are missing from the row get the default value and are added to the report.
+     */
+    public static BatchProcessor forSingleRow(Map<String, String> row, Writer writer, String reportColumnPrefix, Map<String, String> defaults) throws IOException {
         var headers = new ArrayList<>(row.keySet());
         List<Map<String, String>> rows = List.of(new LinkedHashMap<>(row));
         return new BatchProcessor(headers, rows.iterator(), () -> {
-        }, writer, reportColumnPrefix, Map.of());
+        }, writer, reportColumnPrefix, defaults);
     }
 
     public Summary process(RowHandler handler) throws IOException {
@@ -249,7 +272,8 @@ public class BatchProcessor implements Closeable {
 
         long rowNumber = 1;
         while (rows.hasNext()) {
-            var row = new Row(rowNumber++, headers, applyDefaults(rows.next()));
+            var defaulted = new HashSet<String>();
+            var row = new Row(rowNumber++, headers, applyDefaults(rows.next(), defaulted), defaulted);
             log.debug("Processing batch row {}", row.getRowNumber());
             Result result;
 

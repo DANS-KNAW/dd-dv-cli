@@ -79,6 +79,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
     private static final String VERSION_NOTE = "*versionNote";
     private static final String REPLACE = "*replace";
     private static final Set<String> RESERVED_COLUMNS = Set.of(DATASET_ID, PID, DATABASE_ID, EXPECTED_STATE, EXPECT_IN_REVIEW, PUBLISH_VERSION, VERSION_NOTE, REPLACE);
+    private static final String DEFAULT_EXPECTED_STATE = "not deaccessioned";
     private static final long PUBLISH_POLL_INTERVAL_MS = 5000L;
 
     @Option(names = { "-i", "--input-file" }, description = "Input CSV file")
@@ -178,8 +179,8 @@ public class DatasetEditMetadata implements Callable<Integer> {
             var fieldSpecs = metadataFieldSpecProvider.getFieldSpecs();
             try (var writer = BatchReportWriters.create(inputFile, reportsDir, defaultReportsDir);
                 var batchProcessor = inputFile != null
-                    ? BatchProcessor.forCsv(inputFile, writer, SPECIAL_COLUMN_PREFIX, createBatchDefaults(defaultFieldValues))
-                    : BatchProcessor.forSingleRow(createSingleRow(defaultFieldValues), writer, SPECIAL_COLUMN_PREFIX)) {
+                    ? BatchProcessor.forCsv(inputFile, writer, SPECIAL_COLUMN_PREFIX, createReportDefaults(defaultFieldValues))
+                    : BatchProcessor.forSingleRow(createSingleRow(defaultFieldValues), writer, SPECIAL_COLUMN_PREFIX, createReportDefaults(Map.of()))) {
 
                 if (inputFile != null) {
                     var idColumnCount = ID_COLUMNS.stream().filter(column -> batchProcessor.getHeaders().stream().anyMatch(header -> column.equals(toSpecialColumn(header, batchProcessor.getHeaders())))).count();
@@ -207,6 +208,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
 
     private BatchProcessor.Result processRow(BatchProcessor.Row row, Map<String, String> defaultFieldValues, Map<String, DatasetFieldType> fieldSpecs) throws Exception {
         var effectiveValues = applyDefaults(row);
+        var expectedStateExplicit = expectedState != null || !row.isDefaulted(EXPECTED_STATE);
         var idColumns = ID_COLUMNS.stream().filter(column -> trimToNull(effectiveValues.get(column)) != null).toList();
         if (idColumns.isEmpty()) {
             return BatchProcessor.Result.failed("Missing dataset identifier: one of *datasetId, *pid or *databaseId is required");
@@ -233,7 +235,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
 
         var actualState = latestVersion.getVersionState();
         var expectedStateValue = trimToNull(effectiveValues.get(EXPECTED_STATE));
-        var expectedStateMatcher = ExpectedState.parse(expectedStateValue == null ? "not deaccessioned" : expectedStateValue);
+        var expectedStateMatcher = ExpectedState.parse(expectedStateValue == null ? DEFAULT_EXPECTED_STATE : expectedStateValue);
         if (!expectedStateMatcher.matches(actualState)) {
             log.info("Skipping dataset {} because state {} does not match expected {}", id, actualState, expectedStateMatcher.describe());
             return BatchProcessor.Result.skipped(String.format("Expected state %s but found %s", expectedStateMatcher.describe(), actualState));
@@ -268,9 +270,11 @@ public class DatasetEditMetadata implements Callable<Integer> {
         }
 
         var publicationMode = PublishVersion.parse(trimToNull(effectiveValues.get(PUBLISH_VERSION)));
+        var publicationSkipped = false;
         var draftBeforeEdit = "DRAFT".equalsIgnoreCase(actualState);
-        if (publicationMode != PublishVersion.LEAVE_DRAFT && draftBeforeEdit && expectedStateValue == null) {
+        if (publicationMode != PublishVersion.LEAVE_DRAFT && draftBeforeEdit && !expectedStateExplicit) {
             log.info("Not publishing dataset {} because it was a draft and expectedState was not explicitly provided", id);
+            publicationSkipped = true;
         }
         else if (publicationMode != PublishVersion.LEAVE_DRAFT) {
             log.info("Publishing dataset {} as {}", id, publicationMode);
@@ -279,7 +283,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
         }
 
         log.info("Finished metadata edit for dataset {}", id);
-        return BatchProcessor.Result.ok("Metadata edited");
+        return BatchProcessor.Result.ok(publicationSkipped ? "Metadata edited, publication skipped (existing draft)" : "Metadata edited");
     }
 
     /**
@@ -379,12 +383,23 @@ public class DatasetEditMetadata implements Callable<Integer> {
         }
     }
 
-    private Map<String, String> createBatchDefaults(Map<String, String> defaultFieldValues) {
-        var defaults = createSingleRow(defaultFieldValues);
-        // replace is only a default if explicitly requested
-        if (!replace) {
-            defaults.remove(REPLACE);
+    /**
+     * The defaults for the special columns, so that the effective values of all of them end up in the report.
+     */
+    private Map<String, String> createReportDefaults(Map<String, String> defaultFieldValues) {
+        var defaults = new LinkedHashMap<String, String>();
+        defaults.put(EXPECTED_STATE, expectedState != null ? expectedState : DEFAULT_EXPECTED_STATE);
+        defaults.put(REPLACE, Boolean.toString(replace));
+        if (expectInReview != null) {
+            defaults.put(EXPECT_IN_REVIEW, expectInReview);
         }
+        if (publishVersion != null) {
+            defaults.put(PUBLISH_VERSION, publishVersion);
+        }
+        if (versionNote != null) {
+            defaults.put(VERSION_NOTE, versionNote);
+        }
+        defaults.putAll(defaultFieldValues);
         return defaults;
     }
 
@@ -411,7 +426,6 @@ public class DatasetEditMetadata implements Callable<Integer> {
         if (versionNote != null) {
             row.put(VERSION_NOTE, versionNote);
         }
-        row.put(REPLACE, Boolean.toString(replace));
         row.putAll(defaultFieldValues);
         return row;
     }
