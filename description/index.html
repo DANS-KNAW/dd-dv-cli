@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Description - dd-dv-cli</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Description";
+        var mkdocs_page_input_path = "description.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> dd-dv-cli
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption"><span class="caption-text">Manual</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="..">Introduction</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="./">Description</a>
+    <ul class="current">
+    <li class="toctree-l2"><a class="reference internal" href="#common-features-of-dv-dataverse-create-dataset-and-dv-dataset-edit-metadata">Common features of dv dataverse-create-dataset and dv dataset-edit-metadata</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#input-file-and-columns">Input file and columns</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#field-types">Field types</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#default-values">Default values</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#other-options">Other options</a>
+    </li>
+    <li class="toctree-l3"><a class="reference internal" href="#report">Report</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#dv-dataverse-create-dataset">dv dataverse-create-dataset</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#columns">Columns</a>
+    </li>
+        </ul>
+    </li>
+    <li class="toctree-l2"><a class="reference internal" href="#dv-dataset-edit-metadata">dv dataset-edit-metadata</a>
+        <ul>
+    <li class="toctree-l3"><a class="reference internal" href="#columns_1">Columns</a>
+    </li>
+        </ul>
+    </li>
+    </ul>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../installation/">Installation</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../context/">Context</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Development</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../dev/">Overview</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">dd-dv-cli</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+          <li>Manual &raquo;</li><li>Description</li>
+    <li class="wy-breadcrumbs-aside">
+        <a href="https://github.com/DANS-KNAW/dd-dv-cli/edit/master/docs/description.md"> Edit on DANS-KNAW/dd-dv-cli</a>
+    </li>
+  </ul>
+  <hr/>
+</div>
+
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="description">Description<a class="headerlink" href="#description" title="Permanent link">&para;</a></h1>
+<p>Dataverse command-line interface. It uses the <a href="https://guides.dataverse.org/en/latest/api/index.html" target="_blank">Dataverse API</a> and in some cases direct access to the Dataverse database. The commands are
+implemented using <a href="https://dans-knaw.github.io/dans-dataverse-client-lib/" target="_blank">dans-dataverse-client-lib</a>. Some of the more complex commands are documented below.</p>
+<h2 id="common-features-of-dv-dataverse-create-dataset-and-dv-dataset-edit-metadata">Common features of <code>dv dataverse-create-dataset</code> and <code>dv dataset-edit-metadata</code><a class="headerlink" href="#common-features-of-dv-dataverse-create-dataset-and-dv-dataset-edit-metadata" title="Permanent link">&para;</a></h2>
+<p>The commands <a href="#dv-dataverse-create-dataset"><code>dv dataverse-create-dataset</code></a> and <a href="#dv-dataset-edit-metadata"><code>dv dataset-edit-metadata</code></a> work in the same
+way: they process one dataset specified on the command line, or a batch of datasets specified in a CSV input file (<code>--input-file</code>, <code>-i</code>), one row per dataset.
+This section describes what they have in common; the sections on the individual commands describe their specific columns and options.</p>
+<h3 id="input-file-and-columns">Input file and columns<a class="headerlink" href="#input-file-and-columns" title="Permanent link">&para;</a></h3>
+<p>The columns of the input file fall into several categories. Which of these apply depends on the command:</p>
+<ul>
+<li>Dataset identifier (<code>dv dataset-edit-metadata</code> only)</li>
+<li>Preconditions (<code>dv dataset-edit-metadata</code> only)</li>
+<li>Processing instructions</li>
+<li>Field values</li>
+</ul>
+<p>Column names are case-insensitive.</p>
+<div class="admonition note">
+<p class="admonition-title">Avoiding conflicts between special columns and fields</p>
+<p>If a metadata field has the same name as one of the non-field columns of the command (e.g., <code>pid</code>), prefix the name of the non-field column with <code>*</code>, e.g.,
+<code>*pid</code>. The prefix is optional otherwise. If both <code>*pid</code> and <code>pid</code> are present, the first is the special column and the second is a metadata field. Field
+names must not start with <code>*</code>. The <code>*result</code> and <code>*message</code> columns in the <a href="#report">report</a> always have the <code>*</code> preempting any possible conflicts with
+field names.</p>
+</div>
+<h3 id="field-types">Field types<a class="headerlink" href="#field-types" title="Permanent link">&para;</a></h3>
+<p>The names of the field value columns depend on the metadata blocks that are available.</p>
+<ul>
+<li>A primitive field or controlled vocabulary field is specified simply by the field identifier, e.g., <code>myField</code>.</li>
+<li>If multiple values are to be added, the field identifier is indexed, e.g., <code>myField[1]</code>. <code>myField[2]</code>, etc.</li>
+<li>A compound field is specified by the field identifier of the parent field, followed by a dot and the name of the child field, e.g., <code>myField.myChildField</code>.
+  Note that in many cases the name of the child field refers to the parent field by convention, e.g., <code>authorName</code>, but you still have to prefix it with the
+  parent field identifier, e.g., <code>author.authorName</code>.</li>
+<li>If multiple values of a compound field are to be added, the parent field identifier is indexed, e.g., <code>myField[1].myChildField</code>, <code>myField[2].myChildField</code>,
+  etc.</li>
+</ul>
+<h3 id="default-values">Default values<a class="headerlink" href="#default-values" title="Permanent link">&para;</a></h3>
+<p>Values for the columns can also be given as command line options, which can be combined with <code>--input-file</code>. In that case they provide default values for
+the corresponding columns:</p>
+<ul>
+<li>If the CSV file has no column of that name, the command line value is used for every row.</li>
+<li>If the column exists, the command line value is used for the rows where the cell is empty or blank. A non-blank cell always takes precedence.</li>
+<li>If neither a column value nor a command line option is given, the setting is not applied (unless the command defines a default for it).</li>
+</ul>
+<p>Field values can have defaults too: <code>&lt;column name&gt;=&lt;value&gt;</code> arguments can be combined with <code>--input-file</code>. They work the same way: a column that is missing
+from the CSV file gets the value for every row, and for an existing column the value is used for the rows where the cell is empty or blank. How blank cells in
+field columns are interpreted otherwise is specific to the command. Note that you will need to enclose the whole argument in quotes if the value contains
+spaces, or if the name has an
+index, e.g., <code>'myField[1]=longer value with spaces'</code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Running without CSV input file</p>
+<p>Since you can provide defaults for all the columns, it is also possible to run the commands without a CSV input file. This can be useful when testing. </p>
+</div>
+<h3 id="other-options">Other options<a class="headerlink" href="#other-options" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>--timeout</code> (for example <code>30s</code>, <code>2m</code>; seconds if no unit is given) is not a column; it applies to the wait for publication of each dataset.</li>
+<li><code>--wait-between-rows</code> (same format as <code>--timeout</code>, default no wait; only allowed together with <code>--input-file</code>) is not a column either; it sets the time to
+  wait after each processed row, except the last one, e.g., to throttle the load on the Dataverse instance.</li>
+<li><code>--reports-dir</code> overrides the location of the <a href="#report">report</a>.</li>
+</ul>
+<h3 id="report">Report<a class="headerlink" href="#report" title="Permanent link">&para;</a></h3>
+<p>When running with a CSV input file, a report will be written to a file in the directory configured in <code>editMetadata.reportsDir</code> in <code>.dv.yml</code>. The
+<code>--reports-dir</code> option can be used to override this location. The report contains a copy of each line, with the column names exactly as in the input (so an
+optional <code>*</code> is kept or absent as it was), plus the columns for default values that were not in the input file, so that the effective input is visible (blank
+cells in the input are filled with the default value), plus the extra columns <code>*result</code> and <code>*message</code>, which always have the <code>*</code>. The columns are ordered as:
+identifier (<code>pid</code>, <code>databaseId</code> or <code>datasetId</code>), <code>*result</code>, <code>*message</code>, the processing instruction columns (e.g., <code>*expectedState</code>), and finally the metadata
+field columns. When running without a CSV input file, the report is written to the standard output.</p>
+<p>The <code>*result</code> column contains one of:</p>
+<ul>
+<li><code>OK</code>: the row was processed successfully</li>
+<li><code>FAILED</code>: an error occurred while processing the row</li>
+<li><code>SKIPPED</code>: the row was skipped because a precondition was not met</li>
+</ul>
+<h2 id="dv-dataverse-create-dataset">dv dataverse-create-dataset<a class="headerlink" href="#dv-dataverse-create-dataset" title="Permanent link">&para;</a></h2>
+<p>Creates one dataset, or a batch of datasets, in a collection. It uses the <a href="https://guides.dataverse.org/en/latest/api/native-api.html#create-a-dataset-in-a-dataverse-collection" target="_blank">Create a dataset</a> endpoint. The common features described
+<a href="#common-features-of-dv-dataverse-create-dataset-and-dv-dataset-edit-metadata">above</a> apply. Only the metadata blocks enabled for the target collection can be
+used, and the fields that Dataverse requires must be provided.</p>
+<h3 id="columns">Columns<a class="headerlink" href="#columns" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>alias</code> - the alias of the collection in which to create the dataset. Default: the value of <code>--alias</code>, or <code>root</code> if that is not specified either. A
+  non-blank cell takes precedence over the command line option.</li>
+<li><code>publish</code> - whether to publish the dataset after creation: <code>yes</code>, or <code>no</code> (synonym: <code>leave-draft</code>). Default: the value of <code>--publish</code>, or <code>no</code>. A newly
+  created dataset is always published as version 1.0, so there is no choice of version type.</li>
+<li>Any other column is a metadata field value (see <a href="#field-types">Field types</a>).</li>
+</ul>
+<h2 id="dv-dataset-edit-metadata">dv dataset-edit-metadata<a class="headerlink" href="#dv-dataset-edit-metadata" title="Permanent link">&para;</a></h2>
+<p>For bulk changes on the metadata of multiple datasets in a Dataverse instance, you can use <code>dv dataset-edit-metadata</code>. This command uses the
+<a href="https://guides.dataverse.org/en/latest/api/native-api.html#edit-dataset-metadata" target="_blank">Edit metadata</a> endpoint, which allows you to add or replace metadata fields in a dataset. For typical usage, the command takes a CSV file as
+input. The common features described
+<a href="#common-features-of-dv-dataverse-create-dataset-and-dv-dataset-edit-metadata">above</a> apply.</p>
+<h3 id="columns_1">Columns<a class="headerlink" href="#columns_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>
+<p>Dataset identifier</p>
+<ul>
+<li><code>datasetId</code> - the database ID or PID of the dataset, a PID must contain the protocol, e.g., <code>doi:10.5072/FK2/123456</code></li>
+<li><code>pid</code> - the persistent identifier of the dataset, which must start with a protocol label, e.g., <code>doi:10.5072/FK2/123456</code></li>
+<li><code>databaseId</code> - the database ID of the dataset, consisting of digits only</li>
+</ul>
+<p>The input file must contain exactly one of these three columns; they are mutually exclusive. Each row must have a value in that column; there is no
+  default identifier (the <code>--datasetId</code>, <code>--pid</code> and <code>--databaseId</code> options cannot be used together with an input file). Use <code>pid</code> or <code>databaseId</code> instead
+  of <code>datasetId</code> if you want the identifier to be validated against its expected format. When no input file is used, exactly one of the three options is
+  required.</p>
+</li>
+<li>
+<p>Preconditions</p>
+<ul>
+<li><code>expectedState</code> - the expected state of the dataset version to be edited, one of <code>draft</code>, <code>released</code>, <code>deacessioned</code> or a negation of one of those, e.g.,
+  <code>not released</code>. The default precondition is <code>not deaccessioned</code>.</li>
+<li><code>expectInReview</code> - whether the dataset is expected to be in review: <code>yes</code> or <code>no</code>. The default is no expectation.</li>
+<li><code>=&lt;fieldId&gt;</code> - the expected current value of the field with identifier <code>&lt;fieldId&gt;</code>, e.g., <code>=title</code>, <code>=subject[2]</code> or <code>=author[1].authorName</code>. Before
+  making any changes, the command checks that the field in the latest version has exactly this value (case-sensitive, surrounding whitespace in the cell
+  ignored). If not, the row is skipped. An empty cell means the field is expected to have no value. For a multivalued field without index, the
+  first value is checked. On the command line, use e.g. <code>=title=Old title</code>.</li>
+</ul>
+</li>
+<li>Processing instructions<ul>
+<li><code>publishVersion</code> - whether to publish the dataset after editing, one of <code>minor</code>, <code>major</code> or <code>leave-draft</code> (no
+  publication action is attempted) or <code>no</code> (a synonym for <code>leave-draft</code>). <strong>N.B. If the dataset was a draft <i>before</i> editing, publication is only
+  attempted if this was explicitly expressed in <code>expectedState</code>.</strong></li>
+<li><code>versionNote</code> - a note to set on the draft version before publication. This involves a separate API call and requires the
+  version note to be enabled in Dataverse. (See <a href="https://guides.dataverse.org/en/latest/installation/config.html#dataverse-feature-enable-version-note" target="_blank">Enabling version notes</a>.)</li>
+<li><code>replace</code> - whether to replace existing values or add to them: <code>yes</code> or <code>no</code></li>
+</ul>
+</li>
+<li>Field values<ul>
+<li>An empty cell leaves the field unchanged if <code>replace</code> is <code>no</code>, and removes the field's value(s) if <code>replace</code> is <code>yes</code>.</li>
+<li>To leave a field unchanged while <code>replace</code> is <code>yes</code>, put <code>!skip</code> in the cell. If the value <code>!skip</code> must literally be stored in a field, choose another
+  skip code with the <code>--skip-code</code> option (default <code>!skip</code>).</li>
+</ul>
+</li>
+</ul>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href=".." class="btn btn-neutral float-left" title="Introduction"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+        <a href="../installation/" class="btn btn-neutral float-right" title="Installation">Next <span class="icon icon-circle-arrow-right"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href=".." style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../installation/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script>var base_url = '..';</script>
+    <script src="../js/theme_extra.js" defer></script>
+    <script src="../js/theme.js" defer></script>
+      <script src="../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>
