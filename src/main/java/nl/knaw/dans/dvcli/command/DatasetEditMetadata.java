@@ -264,21 +264,20 @@ public class DatasetEditMetadata implements Callable<Integer> {
         log.debug("Editing {} metadata fields for dataset {} with replace={}", fieldList.getFields().size(), id, replaceExistingValues);
         datasetApi.editMetadata(fieldList, replaceExistingValues);
 
-        var note = trimToNull(effectiveValues.get(VERSION_NOTE));
-        if (note != null) {
-            log.debug("Setting version note for dataset {}", id);
-            datasetApi.setVersionNote(note);
-        }
-
         var publicationMode = PublishVersion.parse(trimToNull(effectiveValues.get(PUBLISH_VERSION)));
         var publicationSkipped = false;
         var draftBeforeEdit = "DRAFT".equalsIgnoreCase(actualState);
         if (publicationMode != PublishVersion.LEAVE_DRAFT && draftBeforeEdit && !expectedStateExplicit) {
-            log.info("Not publishing dataset {} because it was a draft and expectedState was not explicitly provided", id);
+            log.info("Not publishing dataset {} because it was a draft and expectedState was not explicitly provided (also skipping version note)", id);
             publicationSkipped = true;
         }
         else if (publicationMode != PublishVersion.LEAVE_DRAFT) {
             log.info("Publishing dataset {} as {}", id, publicationMode);
+            var note = trimToNull(effectiveValues.get(VERSION_NOTE));
+            if (note != null) {
+                log.debug("Setting version note for dataset {}", id);
+                datasetApi.setVersionNote(note);
+            }
             datasetApi.publish(publicationMode.toUpdateType(), false);
             datasetApi.awaitState("RELEASED", timeout.toMilliseconds(), PUBLISH_POLL_INTERVAL_MS);
         }
