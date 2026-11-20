@@ -195,7 +195,8 @@ public class DatasetEditMetadata implements Callable<Integer> {
                     }
                 }
 
-                var summary = batchProcessor.process(row -> processRow(row, defaultFieldValues, fieldSpecs), waitBetweenRows == null ? 0 : waitBetweenRows.toMilliseconds());
+                var tracker = new StartingStateTracker();
+                var summary = batchProcessor.process(row -> processRow(row, fieldSpecs, tracker), waitBetweenRows == null ? 0 : waitBetweenRows.toMilliseconds());
                 log.info("Finished: {} ok, {} failed, {} skipped", summary.getOkCount(), summary.getFailedCount(), summary.getSkippedCount());
                 return summary.getFailedCount() == 0 ? 0 : 1;
             }
@@ -207,32 +208,62 @@ public class DatasetEditMetadata implements Callable<Integer> {
         }
     }
 
-    private BatchProcessor.Result processRow(BatchProcessor.Row row, Map<String, String> defaultFieldValues, Map<String, DatasetFieldType> fieldSpecs) throws Exception {
+    private static class StartingStateTracker {
+        private Integer datasetId;
+        private Boolean draftBeforeEdit;
+
+        private void clear() {
+            datasetId = null;
+            draftBeforeEdit = null;
+        }
+    }
+
+    private BatchProcessor.Result processRow(BatchProcessor.Row row, Map<String, DatasetFieldType> fieldSpecs, StartingStateTracker tracker) throws Exception {
         var effectiveValues = applyDefaults(row);
         var expectedStateExplicit = expectedState != null || !row.isDefaulted(EXPECTED_STATE);
         var idColumns = ID_COLUMNS.stream().filter(column -> trimToNull(effectiveValues.get(column)) != null).toList();
         if (idColumns.isEmpty()) {
+            tracker.clear();
             return BatchProcessor.Result.failed("Missing dataset identifier: one of *datasetId, *pid or *databaseId is required");
         }
         if (idColumns.size() > 1) {
+            tracker.clear();
             return BatchProcessor.Result.failed("Only one of *datasetId, *pid and *databaseId may be specified");
         }
         var idColumn = idColumns.get(0);
         var id = trimToNull(effectiveValues.get(idColumn));
         if (PID.equals(idColumn) && !PID_PATTERN.matcher(id).matches()) {
+            tracker.clear();
             return BatchProcessor.Result.failed("Invalid pid, it must start with a protocol label such as 'doi:': " + id);
         }
         if (DATABASE_ID.equals(idColumn) && !DATABASE_ID_PATTERN.matcher(id).matches()) {
+            tracker.clear();
             return BatchProcessor.Result.failed("Invalid databaseId, it must consist of digits only: " + id);
         }
 
         log.info("Processing metadata edit for dataset {}", id);
-        var datasetApi = switch (idColumn) {
-            case PID -> dataverseClient.dataset(id);
-            case DATABASE_ID -> dataverseClient.dataset(Integer.parseInt(id));
-            default -> getDatasetApi(id);
-        };
-        var latestVersion = datasetApi.getVersion(Version.LATEST.toString()).getData();
+        DatasetApi datasetApi;
+        DatasetVersion latestVersion;
+        try {
+            datasetApi = switch (idColumn) {
+                case PID -> dataverseClient.dataset(id);
+                case DATABASE_ID -> dataverseClient.dataset(Integer.parseInt(id));
+                default -> getDatasetApi(id);
+            };
+            latestVersion = datasetApi.getVersion(Version.LATEST.toString()).getData();
+            if (latestVersion == null || latestVersion.getDatasetId() == null) {
+                tracker.clear();
+                return BatchProcessor.Result.failed("Latest version is missing canonical dataset ID");
+            }
+        }
+        catch (Exception e) {
+            tracker.clear();
+            throw e;
+        }
+        if (!Objects.equals(tracker.datasetId, latestVersion.getDatasetId())) {
+            tracker.datasetId = latestVersion.getDatasetId();
+            tracker.draftBeforeEdit = null;
+        }
 
         var actualState = latestVersion.getVersionState();
         var expectedStateValue = trimToNull(effectiveValues.get(EXPECTED_STATE));
@@ -262,11 +293,14 @@ public class DatasetEditMetadata implements Callable<Integer> {
             return BatchProcessor.Result.failed("No metadata fields specified");
         }
         log.debug("Editing {} metadata fields for dataset {} with replace={}", fieldList.getFields().size(), id, replaceExistingValues);
+        if (tracker.draftBeforeEdit == null) {
+            tracker.draftBeforeEdit = "DRAFT".equalsIgnoreCase(actualState);
+        }
         datasetApi.editMetadata(fieldList, replaceExistingValues);
 
         var publicationMode = PublishVersion.parse(trimToNull(effectiveValues.get(PUBLISH_VERSION)));
         var publicationSkipped = false;
-        var draftBeforeEdit = "DRAFT".equalsIgnoreCase(actualState);
+        var draftBeforeEdit = tracker.draftBeforeEdit;
         if (publicationMode != PublishVersion.LEAVE_DRAFT && draftBeforeEdit && !expectedStateExplicit) {
             log.info("Not publishing dataset {} because it was a draft and expectedState was not explicitly provided (also skipping version note)", id);
             publicationSkipped = true;
@@ -280,6 +314,7 @@ public class DatasetEditMetadata implements Callable<Integer> {
             }
             datasetApi.publish(publicationMode.toUpdateType(), false);
             datasetApi.awaitState("RELEASED", timeout.toMilliseconds(), PUBLISH_POLL_INTERVAL_MS);
+            tracker.draftBeforeEdit = null;
         }
 
         log.info("Finished metadata edit for dataset {}", id);

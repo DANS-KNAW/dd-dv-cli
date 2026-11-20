@@ -106,6 +106,15 @@ For bulk changes on the metadata of multiple datasets in a Dataverse instance, y
 input. The common features described
 [above](#common-features-of-dv-dataverse-create-dataset-and-dv-dataset-edit-metadata) apply.
 
+Group rows for the same dataset together where possible, for example to replace and then add values. For consecutive rows, the publication safeguard uses the
+state immediately before the first attempted edit since the last confirmed publication. Preconditions are still checked against each row's current state.
+Rows may be in any order, but returning to a dataset after another dataset or an unresolvable row starts a new group. If the dataset is then a draft, a requested
+publication may be skipped even though the edit succeeds, unless a matching `expectedState` is explicitly supplied. Check the report for publication-skipped
+messages.
+
+This tracking uses constant memory regardless of the number of datasets; input processing, reporting and runtime still depend on batch size and the environment.
+It assumes stable canonical dataset IDs and does not protect against concurrent writers or ambiguous remote failures.
+
 ### Columns
 
 * Dataset identifier
@@ -128,8 +137,8 @@ input. The common features described
       first value is checked. On the command line, use e.g. `=title=Old title`.
 * Processing instructions
     * `publishVersion` - whether to publish the dataset after editing, one of `minor`, `major` or `leave-draft` (no
-      publication action is attempted) or `no` (a synonym for `leave-draft`). **N.B. If the dataset was a draft <i>before</i> editing, publication is only
-      attempted if this was explicitly expressed in `expectedState`.**
+      publication action is attempted) or `no` (a synonym for `leave-draft`). **N.B. If the dataset was a draft before the first edit attempt in the current
+      group, publication is only attempted if `expectedState` is explicitly supplied and matches the current state.**
     * `versionNote` - a note to set on the draft version before publication. This involves a separate API call and requires the
       version note to be enabled in Dataverse. (See [Enabling version notes]{:target="_blank"}.)
     * `replace` - whether to replace existing values or add to them: `yes` or `no`

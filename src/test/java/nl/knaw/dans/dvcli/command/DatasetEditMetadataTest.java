@@ -876,6 +876,239 @@ public class DatasetEditMetadataTest {
         Mockito.verify(datasetApi).editMetadata(Mockito.any(FieldList.class), Mockito.anyBoolean());
     }
 
+    @Test
+    void failures_after_starting_state_is_captured_retain_it_for_the_next_edit() throws Exception {
+        for (var failure : List.of("edit", "note", "publish", "poll")) {
+            var client = Mockito.mock(DataverseClient.class);
+            var api = Mockito.mock(DatasetApi.class);
+            var input = tempDir.resolve(failure + ".csv");
+            Files.writeString(input, """
+                *datasetId,*publishVersion,*versionNote,title
+                42,minor,First note,First
+                42,minor,,Second
+                """);
+            Mockito.when(client.dataset(42)).thenReturn(api);
+            Mockito.doReturn(mockLatestVersionResponse("RELEASED"), mockLatestVersionResponse("DRAFT")).when(api).getVersion(Version.LATEST.toString());
+            Mockito.doReturn(mockLockResponse(List.of())).when(api).getLocks();
+            switch (failure) {
+                case "edit" -> Mockito.doThrow(new RuntimeException("edit failure")).doReturn(null)
+                    .when(api).editMetadata(Mockito.any(FieldList.class), Mockito.eq(false));
+                case "note" -> Mockito.doThrow(new RuntimeException("note failure")).when(api).setVersionNote("First note");
+                case "publish" -> Mockito.doThrow(new RuntimeException("publish failure")).doReturn(null)
+                    .when(api).publish(UpdateType.minor, false);
+                case "poll" -> Mockito.doThrow(new RuntimeException("poll failure")).doNothing()
+                    .when(api).awaitState("RELEASED", 10000L, 5000L);
+            }
+
+            var result = executeWithCapturedStdout(new CommandLine(new DatasetEditMetadata(client, DatasetEditMetadataTest::createFieldSpecs, null)),
+                "--input-file", input.toString());
+
+            assertThat(result.exitCode()).as(failure).isEqualTo(1);
+            assertThat(result.stdout()).as(failure).contains("FAILED").contains("42,OK").doesNotContain("publication skipped (existing draft)");
+            Mockito.verify(api, Mockito.times(failure.equals("publish") || failure.equals("poll") ? 2 : 1)).publish(UpdateType.minor, false);
+        }
+    }
+
+    @Test
+    void same_dataset_skips_preserve_captured_starting_state() throws Exception {
+        var client = Mockito.mock(DataverseClient.class);
+        var api = Mockito.mock(DatasetApi.class);
+        var input = tempDir.resolve("same-skips.csv");
+        Files.writeString(input, """
+            *datasetId,*expectedState,*expectInReview,*publishVersion,=title,title
+            42,,,leave-draft,,First
+            42,released,,leave-draft,,State skip
+            42,,yes,leave-draft,,Review skip
+            42,,,leave-draft,Wrong,Value skip
+            42,,,minor,,Last
+            """);
+        Mockito.when(client.dataset(42)).thenReturn(api);
+        Mockito.doReturn(mockLatestVersionResponse("RELEASED"), mockLatestVersionResponse("DRAFT"))
+            .when(api).getVersion(Version.LATEST.toString());
+        Mockito.doReturn(mockLockResponse(List.of())).when(api).getLocks();
+
+        var result = executeWithCapturedStdout(new CommandLine(new DatasetEditMetadata(client, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--input-file", input.toString());
+
+        assertThat(result.exitCode()).isZero();
+        assertThat(result.stdout()).contains("Expected state", "Expected in review", "Expected title to be 'Wrong'", "42,OK")
+            .doesNotContain("publication skipped (existing draft)");
+        Mockito.verify(api, Mockito.times(2)).editMetadata(Mockito.any(FieldList.class), Mockito.eq(false));
+        Mockito.verify(api).publish(UpdateType.minor, false);
+    }
+
+    @Test
+    void confirmed_publication_resets_starting_state_for_next_edit() throws Exception {
+        var client = Mockito.mock(DataverseClient.class);
+        var api = Mockito.mock(DatasetApi.class);
+        var input = tempDir.resolve("published.csv");
+        Files.writeString(input, """
+            *datasetId,*publishVersion,title
+            42,minor,First
+            42,minor,Second
+            """);
+        Mockito.when(client.dataset(42)).thenReturn(api);
+        Mockito.doReturn(mockLatestVersionResponse("RELEASED"), mockLatestVersionResponse("DRAFT")).when(api).getVersion(Version.LATEST.toString());
+        Mockito.doReturn(mockLockResponse(List.of())).when(api).getLocks();
+
+        var result = executeWithCapturedStdout(new CommandLine(new DatasetEditMetadata(client, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--input-file", input.toString());
+
+        assertThat(result.exitCode()).isZero();
+        assertThat(result.stdout()).contains("publication skipped (existing draft)");
+        Mockito.verify(api, Mockito.times(2)).editMetadata(Mockito.any(FieldList.class), Mockito.eq(false));
+        Mockito.verify(api).publish(UpdateType.minor, false);
+        Mockito.verify(api).awaitState("RELEASED", 10000L, 5000L);
+    }
+
+    @Test
+    void starting_state_is_isolated_between_invocations_of_same_command() throws Exception {
+        var client = Mockito.mock(DataverseClient.class);
+        var api = Mockito.mock(DatasetApi.class);
+        var input = tempDir.resolve("invocations.csv");
+        Files.writeString(input, "*datasetId,*publishVersion,title\n42,leave-draft,Edit\n");
+        Mockito.when(client.dataset(42)).thenReturn(api);
+        Mockito.doReturn(mockLatestVersionResponse("RELEASED"), mockLatestVersionResponse("DRAFT")).when(api).getVersion(Version.LATEST.toString());
+        Mockito.doReturn(mockLockResponse(List.of())).when(api).getLocks();
+        var command = new CommandLine(new DatasetEditMetadata(client, DatasetEditMetadataTest::createFieldSpecs, null));
+
+        var first = executeWithCapturedStdout(command, "--input-file", input.toString());
+        Files.writeString(input, "*datasetId,*publishVersion,title\n42,minor,Edit\n");
+        var second = executeWithCapturedStdout(command, "--input-file", input.toString());
+
+        assertThat(first.exitCode()).isZero();
+        assertThat(second.exitCode()).isZero();
+        assertThat(second.stdout()).contains("publication skipped (existing draft)");
+        Mockito.verify(api, Mockito.times(2)).editMetadata(Mockito.any(FieldList.class), Mockito.eq(false));
+        Mockito.verify(api, Mockito.never()).publish(Mockito.any(), Mockito.anyBoolean());
+    }
+
+    @Test
+    void consecutive_aliases_share_the_starting_released_state() throws Exception {
+        var client = Mockito.mock(DataverseClient.class);
+        var api = Mockito.mock(DatasetApi.class);
+        var input = tempDir.resolve("aliases.csv");
+        Files.writeString(input, """
+            *datasetId,*publishVersion,title
+            doi:10.5072/FK2/ABC,leave-draft,First
+            42,minor,Second
+            """);
+        Mockito.when(client.dataset("doi:10.5072/FK2/ABC")).thenReturn(api);
+        Mockito.when(client.dataset(42)).thenReturn(api);
+        Mockito.doReturn(mockLatestVersionResponse("RELEASED"), mockLatestVersionResponse("DRAFT")).when(api).getVersion(Version.LATEST.toString());
+        Mockito.doReturn(mockLockResponse(List.of())).when(api).getLocks();
+
+        var result = executeWithCapturedStdout(new CommandLine(new DatasetEditMetadata(client, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--input-file", input.toString());
+
+        assertThat(result.exitCode()).isZero();
+        assertThat(result.stdout()).contains("doi:10.5072/FK2/ABC,OK").contains("42,OK");
+        var fields = ArgumentCaptor.forClass(FieldList.class);
+        Mockito.verify(api, Mockito.times(2)).editMetadata(fields.capture(), Mockito.eq(false));
+        assertThat(fields.getAllValues()).extracting(f -> ((PrimitiveSingleValueField) f.getFields().get(0)).getValue())
+            .containsExactly("First", "Second");
+        Mockito.verify(api).publish(UpdateType.minor, false);
+    }
+
+    @Test
+    void interleaved_dataset_starts_a_new_group_and_explicit_expectation_allows_publication() throws Exception {
+        var client = Mockito.mock(DataverseClient.class);
+        var first = Mockito.mock(DatasetApi.class);
+        var second = Mockito.mock(DatasetApi.class);
+        var input = tempDir.resolve("interleaved.csv");
+        Files.writeString(input, """
+            *datasetId,*expectedState,*publishVersion,title
+            42,,leave-draft,First
+            43,,leave-draft,Other
+            42,,minor,Return
+            42,draft,minor,Explicit
+            """);
+        Mockito.when(client.dataset(42)).thenReturn(first);
+        Mockito.when(client.dataset(43)).thenReturn(second);
+        Mockito.doReturn(mockLatestVersionResponse("RELEASED", 42), mockLatestVersionResponse("DRAFT", 42),
+            mockLatestVersionResponse("DRAFT", 42)).when(first).getVersion(Version.LATEST.toString());
+        Mockito.doReturn(mockLatestVersionResponse("RELEASED", 43)).when(second).getVersion(Version.LATEST.toString());
+        Mockito.doReturn(mockLockResponse(List.of())).when(first).getLocks();
+        Mockito.doReturn(mockLockResponse(List.of())).when(second).getLocks();
+
+        var result = executeWithCapturedStdout(new CommandLine(new DatasetEditMetadata(client, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--input-file", input.toString());
+
+        assertThat(result.exitCode()).isZero();
+        assertThat(result.stdout()).contains("publication skipped (existing draft)");
+        Mockito.verify(first, Mockito.times(3)).editMetadata(Mockito.any(FieldList.class), Mockito.eq(false));
+        Mockito.verify(second).editMetadata(Mockito.any(FieldList.class), Mockito.eq(false));
+        Mockito.verify(first).publish(UpdateType.minor, false);
+    }
+
+    @Test
+    void skipped_row_does_not_capture_starting_state_before_first_edit() throws Exception {
+        var client = Mockito.mock(DataverseClient.class);
+        var api = Mockito.mock(DatasetApi.class);
+        var input = tempDir.resolve("skipped.csv");
+        Files.writeString(input, """
+            *datasetId,*expectedState,*publishVersion,title
+            42,draft,leave-draft,Skipped
+            42,,minor,Edited
+            """);
+        Mockito.when(client.dataset(42)).thenReturn(api);
+        Mockito.doReturn(mockLatestVersionResponse("RELEASED"), mockLatestVersionResponse("DRAFT")).when(api).getVersion(Version.LATEST.toString());
+        Mockito.doReturn(mockLockResponse(List.of())).when(api).getLocks();
+
+        var result = executeWithCapturedStdout(new CommandLine(new DatasetEditMetadata(client, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--input-file", input.toString());
+
+        assertThat(result.exitCode()).isZero();
+        assertThat(result.stdout()).contains("SKIPPED").contains("publication skipped (existing draft)");
+        Mockito.verify(api).editMetadata(Mockito.any(FieldList.class), Mockito.eq(false));
+        Mockito.verify(api, Mockito.never()).publish(Mockito.any(), Mockito.anyBoolean());
+    }
+
+    @Test
+    void invalid_and_unresolved_rows_break_consecutive_groups() throws Exception {
+        var client = Mockito.mock(DataverseClient.class);
+        var api = Mockito.mock(DatasetApi.class);
+        var unresolved = Mockito.mock(DatasetApi.class);
+        var input = tempDir.resolve("interruptions.csv");
+        Files.writeString(input, """
+            *datasetId,*publishVersion,title
+            42,leave-draft,First
+            ,minor,Missing
+            42,minor,After missing
+            unknown,minor,Unresolved
+            42,minor,After unresolved
+            """);
+        Mockito.when(client.dataset(42)).thenReturn(api);
+        Mockito.when(client.dataset("unknown")).thenReturn(unresolved);
+        Mockito.doReturn(mockLatestVersionResponse("RELEASED"), mockLatestVersionResponse("DRAFT"),
+            mockLatestVersionResponse("DRAFT")).when(api).getVersion(Version.LATEST.toString());
+        Mockito.when(unresolved.getVersion(Version.LATEST.toString())).thenThrow(new IllegalStateException("not found"));
+        Mockito.doReturn(mockLockResponse(List.of())).when(api).getLocks();
+
+        var result = executeWithCapturedStdout(new CommandLine(new DatasetEditMetadata(client, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--input-file", input.toString());
+
+        assertThat(result.exitCode()).isEqualTo(1);
+        assertThat(result.stdout()).contains("Missing dataset identifier", "not found", "publication skipped (existing draft)");
+        Mockito.verify(api, Mockito.times(3)).editMetadata(Mockito.any(FieldList.class), Mockito.eq(false));
+        Mockito.verify(api, Mockito.never()).publish(Mockito.any(), Mockito.anyBoolean());
+    }
+
+    @Test
+    void missing_canonical_id_fails_row_without_editing() throws Exception {
+        var client = Mockito.mock(DataverseClient.class);
+        var api = Mockito.mock(DatasetApi.class);
+        Mockito.when(client.dataset(42)).thenReturn(api);
+        Mockito.doReturn(mockLatestVersionResponse("RELEASED", null)).when(api).getVersion(Version.LATEST.toString());
+
+        var result = executeWithCapturedStdout(new CommandLine(new DatasetEditMetadata(client, DatasetEditMetadataTest::createFieldSpecs, null)),
+            "--databaseId", "42", "title=New title");
+
+        assertThat(result.exitCode()).isEqualTo(1);
+        assertThat(result.stdout()).contains("Latest version is missing canonical dataset ID");
+        Mockito.verify(api, Mockito.never()).editMetadata(Mockito.any(FieldList.class), Mockito.anyBoolean());
+    }
+
     private static void setTitle(DatasetVersion version, String title) {
         var block = new MetadataBlock();
         block.setFields(List.of(new PrimitiveSingleValueField("title", title)));
@@ -914,8 +1147,14 @@ public class DatasetEditMetadataTest {
 
     @SuppressWarnings("unchecked")
     private static DataverseHttpResponse<DatasetVersion> mockLatestVersionResponse(String state) throws Exception {
+        return mockLatestVersionResponse(state, 42);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static DataverseHttpResponse<DatasetVersion> mockLatestVersionResponse(String state, Integer datasetId) throws Exception {
         var version = new DatasetVersion();
         version.setVersionState(state);
+        version.setDatasetId(datasetId);
 
         var response = Mockito.mock(DataverseHttpResponse.class);
         Mockito.doReturn(version).when(response).getData();
